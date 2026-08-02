@@ -11,6 +11,9 @@
   --ink:#e8dcc8; --ink-dim:#a1907a; --ink-mute:#6f6355;
   --gold:#c9a227; --gold-lit:#e8c25a;
   --blood:#a33b32; --leaf:#6f9a5c; --sky:#5b87b8;
+  /* headline family only — wordmark, section headings, title rule. --gold
+     keeps sole ownership of loot/currency/tier semantics; do not repaint it. */
+  --head:#5b7cfa; --head-lit:#8aa2ff;
   /* gear quality tiers — design doc §9, exact hex values */
   --tier-common:#9ca3af; --tier-uncommon:#4ade80; --tier-rare:#60a5fa;
   --tier-epic:#c084fc; --tier-legendary:#fbbf24;
@@ -23,12 +26,12 @@ body{
 }
 .wrap{max-width:620px; margin:0 auto; padding:16px 14px 64px}
 h1,h2,h3{font-family:Cinzel,Georgia,serif; font-weight:700; margin:0}
-.title{text-align:center; letter-spacing:.22em; font-size:26px; color:var(--gold);
+.title{text-align:center; letter-spacing:.22em; font-size:26px; color:var(--head);
   padding:12px 0 4px; text-transform:uppercase}
-.title-rule{height:1px; background:linear-gradient(90deg,transparent,var(--line) 20%,var(--line) 80%,transparent); margin:0 0 18px}
+.title-rule{height:1px; background:linear-gradient(90deg,transparent,var(--head) 20%,var(--head) 80%,transparent); margin:0 0 18px; opacity:.55}
 
 .card{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:12px}
-.card h2{font-size:15px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin-bottom:10px}
+.card h2{font-size:15px; letter-spacing:.12em; text-transform:uppercase; color:var(--head); margin-bottom:10px}
 .muted{color:var(--ink-dim)}
 .tiny{font-size:12.5px}
 
@@ -73,8 +76,9 @@ h1,h2,h3{font-family:Cinzel,Georgia,serif; font-weight:700; margin:0}
 .itemname{font-family:Cinzel,serif; font-size:14.5px; margin-top:2px}
 
 /* chronicle — sessions (real sittings, by time-gap) each hold chapter breaks
-   (zone arrivals) and entries. Rendered newest-session-first; entries within
-   a session run oldest-to-newest so a night still reads top-to-bottom. */
+   (zone arrivals) and entries. Rendered strict newest-first throughout: newest
+   sitting on top, and within it entries run newest-to-oldest, so the very top
+   line is always the most recent thing that happened. */
 .log{display:flex; flex-direction:column}
 .session-head{display:flex; align-items:center; gap:10px; margin:22px 0 12px;
   color:var(--ink-mute); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase}
@@ -151,6 +155,10 @@ input[type=text]:focus{outline:none; border-color:var(--gold)}
 .wn-item.k-gear-epic::before{background:var(--tier-epic)}
 .wn-item.k-gear-legendary::before{background:var(--tier-legendary)}
 .wywa-status{margin:10px 0 0; padding-top:9px; border-top:1px solid var(--line); font-size:13px}
+.chipbar{display:flex; flex-wrap:wrap; gap:7px; margin-bottom:12px}
+.chip{font:inherit; font-size:12.5px; padding:8px 13px; cursor:pointer; background:var(--bg2);
+  color:var(--ink-dim); border:1px solid var(--line); border-radius:999px; letter-spacing:.02em}
+.chip[aria-pressed="true"]{border-color:var(--gold); color:var(--ink); background:#241f18}
 .dismiss{background:none; border:none; color:var(--ink-mute); font:inherit; font-size:13px;
   cursor:pointer; padding:10px 0 0; text-decoration:underline}
 .empty{color:var(--ink-mute); font-size:13.5px; text-align:center; padding:22px 0}
@@ -160,8 +168,10 @@ input[type=text]:focus{outline:none; border-color:var(--gold)}
    runs on the 250ms live tick. */
 @media (prefers-reduced-motion: no-preference){
   .wywa-in{animation:cardIn .5s ease-out}
-  .session:first-child > .entry:last-child,
-  .session:first-child > .chapter:last-child{animation:entryIn .5s ease-out}
+  /* Chronicle now renders strict newest-first, so the newest entry in the
+     newest sitting is the first child, not the last — see chronicleSessions(). */
+  .session:first-child > .entry:first-child,
+  .session:first-child > .chapter:first-child{animation:entryIn .5s ease-out}
   .heroline.levelup{animation:levelFlash 1.2s ease-out}
   @keyframes cardIn{from{opacity:0; transform:translateY(-6px)} to{opacity:1; transform:none}}
   @keyframes entryIn{from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:none}}
@@ -267,10 +277,10 @@ const BALANCE = {
                             // gold scarce (surplus at death actually ROSE to 258k): the
                             // merchant's real bottleneck was never price, it was that rolled
                             // stock rarely beats gear a hero already owns after 200+ drops.
-                            // Only quality he cannot get from drops absorbs the surplus —
+                            // Only quality the hero cannot get from drops absorbs the surplus —
                             // at "epic" it falls to ~75k. Note the curve is not monotonic:
                             // "legendary" at 14x leaves MORE gold than "epic" at 5x, because
-                            // a price that steep means he commissions far less often.
+                            // a price that steep means the hero commissions far less often.
                             // Commissioning still cannot satisfy the ascension gate — the
                             // relic slot is skipped while that guarantee is pending.
 
@@ -336,13 +346,13 @@ const RACES = {
 const CLASSES = {
   novice:     {name:"Novice", tier:0,
                weights:{str:.5,dex:.5,con:.5,int:.5,wis:.5,cha:.5},
-               blurb:"Untested. Everything still ahead of him."},
+               blurb:"Untested. Everything still ahead."},
   soldier:    {name:"Soldier", tier:1,
                weights:{str:1.2,dex:.4,con:1.0,int:.1,wis:.2,cha:.1},
                blurb:"Slow, heavy, hard to kill. The long road to ascension."},
   scout:      {name:"Scout", tier:1,
                weights:{str:.5,dex:1.3,con:.5,int:.3,wis:.3,cha:.1},
-               blurb:"Evasive and quick. Takes the hits he chooses to take."},
+               blurb:"Evasive and quick. Takes only the hits worth taking."},
   apprentice: {name:"Apprentice", tier:1,
                weights:{str:.1,dex:.4,con:.4,int:1.4,wis:.6,cha:.1},
                blurb:"Levels fastest, dies deepest. Arrives at danger early."},
@@ -350,29 +360,29 @@ const CLASSES = {
   // --- Soldier's four (§6) ---
   knight:      {name:"Knight", tier:2,
                 weights:{str:1.0,dex:.3,con:1.3,int:.1,wis:.5,cha:.3},
-                blurb:"Iron discipline. He does not fall so much as refuse to.",
+                blurb:"Iron discipline. Doesn't fall so much as refuse to.",
                 passive:"bulwark_stance"},
   berserker:   {name:"Berserker", tier:2,
                 weights:{str:1.8,dex:.5,con:.6,int:.1,wis:0,cha:.1},
-                blurb:"Speed is armor, in his accounting. He is not always right.",
+                blurb:"Speed is armor, by this one's accounting — not always the right call.",
                 passive:"bloodlust"},
   warden:      {name:"Warden", tier:2,
                 weights:{str:.6,dex:.2,con:1.8,int:.1,wis:1.2,cha:.1},
-                blurb:"Built to last, not to hurry. He intends to see the end.",
+                blurb:"Built to last, not to hurry. Means to see the end.",
                 passive:"wardens_vigil"},
   dragoon:     {name:"Dragoon", tier:2,
                 weights:{str:1.1,dex:1.0,con:.7,int:.1,wis:.2,cha:.1},
-                blurb:"He closes distance faster than caution can follow.",
+                blurb:"Closes distance faster than caution can follow.",
                 passive:"spoils_of_the_charge"},
 
   // --- Scout's four (§6) ---
   ranger:      {name:"Ranger", tier:2,
                 weights:{str:.4,dex:1.4,con:.5,int:.2,wis:.9,cha:.1},
-                blurb:"He has already noticed what is about to go wrong.",
+                blurb:"Has already noticed what is about to go wrong.",
                 passive:"read_the_ground"},
   assassin:    {name:"Assassin", tier:2,
                 weights:{str:.6,dex:1.8,con:.3,int:.3,wis:.2,cha:.1},
-                blurb:"He takes what he needs and is gone before the body's found.",
+                blurb:"Takes what's needed and is gone before the body's found.",
                 passive:"cutpurse"},
   duelist:     {name:"Duelist", tier:2,
                 weights:{str:.3,dex:2.0,con:.4,int:.2,wis:.2,cha:.1},
@@ -380,25 +390,25 @@ const CLASSES = {
                 passive:"perfect_form"},
   beastmaster: {name:"Beastmaster", tier:2,
                 weights:{str:.6,dex:1.0,con:.9,int:.2,wis:.4,cha:.4},
-                blurb:"He does not walk alone, whatever the log says.",
+                blurb:"Doesn't walk alone, whatever the log says.",
                 passive:"companions_warning"},
 
   // --- Apprentice's four (§6) ---
   wizard:      {name:"Wizard", tier:2,
                 weights:{str:.1,dex:.3,con:.5,int:1.6,wis:.9,cha:.1},
-                blurb:"He studies the shape of the danger before it studies him.",
+                blurb:"Studies the shape of the danger before it studies back.",
                 passive:"arcane_mastery"},
   sorcerer:    {name:"Sorcerer", tier:2,
                 weights:{str:.1,dex:.3,con:.2,int:2.2,wis:.3,cha:.1},
-                blurb:"He is already three doors further in than is wise.",
+                blurb:"Already three doors further in than is wise.",
                 passive:"font_of_power"},
   warlock:     {name:"Warlock", tier:2,
                 weights:{str:.1,dex:.4,con:.5,int:1.3,wis:.4,cha:.7},
-                blurb:"Every bargain has a cost. He hasn't found this one's yet.",
+                blurb:"Every bargain has a cost. Hasn't found this one's yet.",
                 passive:"pact_bound"},
   alchemist:   {name:"Alchemist", tier:2,
                 weights:{str:.2,dex:.4,con:.9,int:1.1,wis:.6,cha:.3},
-                blurb:"He has a tincture for most of what the road does to a man.",
+                blurb:"Carries a tincture for most of what the road does to a person.",
                 passive:"waste_not"},
 };
 
@@ -435,7 +445,7 @@ const SKILLS = {
   arcane_insight: {name:"Arcane Insight", blurb:"+10% experience.", effect:{kind:"mult", target:"xp", amount:0.10}},
   battle_focus:   {name:"Battle Focus", blurb:"+8% experience from hard-won fights.", effect:{kind:"mult", target:"xp", amount:0.08}},
   prospectors_eye:{name:"Prospector's Eye", blurb:"+12% gold from every task.", effect:{kind:"mult", target:"gold", amount:0.12}},
-  road_sense:     {name:"Road Sense", blurb:"+15% gold — he knows where the coin hides.", effect:{kind:"mult", target:"gold", amount:0.15}},
+  road_sense:     {name:"Road Sense", blurb:"+15% gold — knows where the coin hides.", effect:{kind:"mult", target:"gold", amount:0.15}},
 
   // --- task speed ---
   cleave:         {name:"Cleave", blurb:"-8% task duration.", effect:{kind:"taskSpeed", amount:0.08}},
@@ -450,20 +460,20 @@ const SKILLS = {
   // --- triggered ---
   second_wind:    {name:"Second Wind", blurb:"Once per merchant cycle, heal 30% of max HP when it drops below 20%.",
                    effect:{kind:"triggered", event:"lowHp", threshold:0.20, once:"merchantCycle", healFrac:0.30,
-                           text:"{name}'s Second Wind pulls him back from the brink — {amt} HP restored."}},
+                           text:"{name}'s Second Wind pulls them back from the brink — {amt} HP restored."}},
   last_gasp:      {name:"Last Gasp", blurb:"Once per merchant cycle, heal 25% of max HP when it drops below 15%.",
                    effect:{kind:"triggered", event:"lowHp", threshold:0.15, once:"merchantCycle", healFrac:0.25,
                            text:"{name} finds one more breath somewhere — {amt} HP restored."}},
 
   blood_high:     {name:"Blood High", blurb:"Once per merchant cycle, heal 28% of max HP when it drops below 25%.",
                    effect:{kind:"triggered", event:"lowHp", threshold:0.25, once:"merchantCycle", healFrac:0.28,
-                           text:"Something in {name} refuses the arithmetic — {amt} HP back, and he goes forward."}},
+                           text:"Something in {name} refuses the arithmetic — {amt} HP back, and forward is where it goes."}},
   field_tincture: {name:"Field Tincture", blurb:"Once per merchant cycle, heal 35% of max HP when it drops below 30%.",
                    effect:{kind:"triggered", event:"lowHp", threshold:0.30, once:"merchantCycle", healFrac:0.35,
-                           text:"{name} works the stopper loose with his teeth and drinks — {amt} HP restored."}},
+                           text:"{name} works the stopper loose with their teeth and drinks — {amt} HP restored."}},
 
   // --- evasion: the DEX answer to soaking (see skillAgg) ---
-  shadow_step:    {name:"Shadow Step", blurb:"+7% evasion — he is not where the blow lands.",
+  shadow_step:    {name:"Shadow Step", blurb:"+7% evasion — never quite where the blow lands.",
                    effect:{kind:"evasion", amount:0.07}},
   sidestep:       {name:"Sidestep", blurb:"+5% evasion.", effect:{kind:"evasion", amount:0.05}},
   cover_ground:   {name:"Cover Ground", blurb:"+6% evasion — distance is its own armor.",
@@ -489,30 +499,30 @@ const SKILLS = {
 
   // --- signature passives, granted automatically at L25 (never offered as a pick) ---
   bulwark_stance:      {name:"Bulwark Stance", blurb:"-10% peril damage, always.", effect:{kind:"mitigation", amount:0.10}},
-  bloodlust:           {name:"Bloodlust", blurb:"Survive one lethal blow at 1 HP — he does not notice it landing.",
+  bloodlust:           {name:"Bloodlust", blurb:"Survive one lethal blow at 1 HP — doesn't notice it landing.",
                         effect:{kind:"cheatdeath", amount:1,
-                                text:"{name} is too far gone in it to fall. The blow lands and he keeps swinging."}},
+                                text:"{name} is too far gone in it to fall. The blow lands, and the swinging doesn't stop."}},
   wardens_vigil:       {name:"Warden's Vigil", blurb:"Survive one lethal blow at 1 HP.",
                         effect:{kind:"cheatdeath", amount:1,
                                 text:"The Warden's Vigil holds. {name} survives on a single breath."}},
-  spoils_of_the_charge:{name:"Momentum", blurb:"+8% evasion — nothing that slow gets a clean line on him.",
+  spoils_of_the_charge:{name:"Momentum", blurb:"+8% evasion — nothing that slow gets a clean line on this one.",
                         effect:{kind:"evasion", amount:0.08}},
   read_the_ground:     {name:"Read the Ground", blurb:"-8% peril damage, always.", effect:{kind:"mitigation", amount:0.08}},
   // Signature passives. These used to hand the weakest classes economy effects,
   // which is the same as handing them nothing — gold is never the constraint.
-  cutpurse:            {name:"Cutpurse", blurb:"+8% evasion — he is gone before the body's found.",
+  cutpurse:            {name:"Cutpurse", blurb:"+8% evasion — gone before the body's found.",
                         effect:{kind:"evasion", amount:0.08}},
   perfect_form:        {name:"Perfect Form", blurb:"+8 Dexterity, permanently.", effect:{kind:"stat", stat:"dex", amount:8}},
   companions_warning:  {name:"Companion's Warning",
                         blurb:"Once per merchant cycle, heal 25% of max HP when it drops below 20%.",
                         effect:{kind:"triggered", event:"lowHp", threshold:0.20, once:"merchantCycle", healFrac:0.25,
-                                text:"{name}'s companion drags him back from the brink — {amt} HP restored."}},
+                                text:"{name}'s companion drags them back from the brink — {amt} HP restored."}},
   arcane_mastery:      {name:"Arcane Mastery", blurb:"+12% experience, always.", effect:{kind:"mult", target:"xp", amount:0.12}},
   font_of_power:       {name:"Font of Power", blurb:"+10 Intelligence, permanently.", effect:{kind:"stat", stat:"int", amount:10}},
   pact_bound:          {name:"Pact-Bound", blurb:"Survive one lethal blow at 1 HP.",
                         effect:{kind:"cheatdeath", amount:1,
                                 text:"The pact answers. Something else pays the price, and {name} rises on a single breath."}},
-  waste_not:           {name:"Waste Not", blurb:"-11% peril damage — he has a salve for most of it.",
+  waste_not:           {name:"Waste Not", blurb:"-11% peril damage — carries a salve for most of it.",
                         effect:{kind:"mitigation", amount:0.11}},
 };
 
@@ -565,22 +575,58 @@ const ZONES = [
 const TASKS = {
   1:["Clearing a badger warren","Escorting a herbalist to the ford","Driving off a tusked boar",
      "Mending the shrine palings","Tracking a lost goat through bramble","Setting snares along the deer path",
-     "Hauling water from the moss-well","Chasing kobolds out of the millrace"],
+     "Hauling water from the moss-well","Chasing kobolds out of the millrace",
+     "Patching a hole in the sheep pen fence","Guiding a lost calf back to its pasture",
+     "Clearing deadfall from the low road","Digging a new well by lantern light",
+     "Standing first watch at a crossroads camp","Gathering kindling before the rain comes",
+     "Chasing crows out of the seed rows","Fording the millpond at first light",
+     "Mapping a new trail around the bog","Splinting a woodcutter's broken arm",
+     "Trading words with a tinker who won't meet anyone's eyes","Helping raise a barn before the frost"],
   2:["Cutting a path through the briar wall","Burning out a spider nest","Standing watch at the March gate",
      "Following a trail of black sap","Hunting the wolf that took the miller's boy","Prying a rusted seal from a stump-door",
-     "Fording the Thorn at dusk","Answering a horn in the deep wood"],
+     "Fording the Thorn at dusk","Answering a horn in the deep wood",
+     "Clearing thornvine from a collapsed shrine","Tracking claw-marks deeper than they should go",
+     "Relighting the watch-fires along the March road","Cutting free a stag caught in briar wire",
+     "Following crow-calls to a fresh kill site","Sealing a den before dusk finds it first",
+     "Escorting a woodward past the wolf-line","Reading a warning carved into bark",
+     "Hunting the source of a smell no one names","Setting a watch over a burial not yet finished",
+     "Following footprints that circle back on themselves","Clearing a fallen tree from the March road"],
   3:["Descending a flooded stair","Reading names off a drowned lintel","Putting down a barrow-wight",
      "Draining a collapsed antechamber","Following a lantern that isn't there","Breaking a grave-seal",
-     "Wading the black cistern","Counting doors that weren't there yesterday"],
+     "Wading the black cistern","Counting doors that weren't there yesterday",
+     "Charting a passage the old maps don't show","Prying open a sealed sarcophagus",
+     "Following a cold draft to its source","Clearing silt from a buried threshold",
+     "Reading a warning scratched into wet stone","Putting down something that used to be a priest",
+     "Bailing water from a sinking gallery","Following echoes that answer a beat too late",
+     "Resetting a ward that's gone quiet","Wading past bones stacked with purpose",
+     "Testing a floor that sounds hollow underfoot","Closing a door that keeps opening itself"],
   4:["Crossing a bridge of cooling slag","Dousing an ember-hound","Climbing the cinder stair",
      "Bargaining with a smoke-speaker","Hauling ore from a burning seam","Cutting through a wall of standing flame",
-     "Sheltering from an ashfall","Silencing a bell that rings itself"],
+     "Sheltering from an ashfall","Silencing a bell that rings itself",
+     "Mapping a vent that wasn't smoking yesterday","Pulling a miner clear of a collapsing gallery",
+     "Cooling a forge left running for years","Following a seam of ore that glows on its own",
+     "Reinforcing a bridge before the next tremor","Trading for passage with something half-formed of smoke",
+     "Putting down an ember-hound's whole litter","Charting a path around a lake of slag",
+     "Salvaging tools from a foundry no one claims","Standing watch while the ground finishes cooling",
+     "Silencing a forge-bell that won't stay quiet","Crossing ground that's still deciding whether to hold"],
   5:["Walking a horizon with no landmark","Digging out a buried caravan","Outlasting a grey storm",
      "Following bootprints that end mid-stride","Rationing the last of the water","Killing something that was praying",
-     "Crossing the glass flats at noon","Burying what the wind uncovered"],
+     "Crossing the glass flats at noon","Burying what the wind uncovered",
+     "Reading a trail marker half-swallowed by ash","Sheltering behind a dune that keeps moving",
+     "Following a compass that won't settle","Digging a grave the wind will only undo",
+     "Rationing shade as carefully as water","Crossing a stretch that swallowed the last three maps",
+     "Trading a canteen for a story worth hearing","Outwaiting a storm with no clear edge",
+     "Following a caravan track to its last wheel","Reading bones for which way the water went",
+     "Standing still while the ash decides which way to fall","Marking a route for whoever crosses next"],
   6:["Climbing the fractured spire","Holding a stair against the tide","Cutting down a crowned thing",
      "Reading the last page of a burning book","Walking the seam where the sky split","Breaking a siege of one",
-     "Answering the voice in the crown","Standing where the world comes apart"],
+     "Answering the voice in the crown","Standing where the world comes apart",
+     "Holding a line that shouldn't be holdable","Climbing past a floor that isn't there anymore",
+     "Answering a challenge no living thing should issue","Cutting a path through something still deciding what it is",
+     "Reading the last words of someone who almost won","Standing where the ground argues with itself",
+     "Silencing something that used to be a bell","Walking a bridge that exists only sometimes",
+     "Breaking a ward built to outlast kingdoms","Answering a voice that already knows the hero's name",
+     "Holding ground the maps don't have a name for","Standing at the last door before the crown"],
 };
 
 const ARRIVAL = {
@@ -596,41 +642,41 @@ const ARRIVAL = {
 // line (a DODGE_TAG appended reframes the same incident as a near-miss), so
 // the flavor cost stays at 6-8 lines per zone rather than 12-16.
 const PERILS = {
-  1:["A boar rakes a tusk across his forearm","The badger warren floor gives way beneath him",
-     "A viper strikes from the bramble","The ford's current takes his footing",
-     "A rotten branch drops without warning","A kobold blade finds a gap in his guard",
-     "Brambles hide a snare line that catches his leg","Loose scree gives way on the goat trail"],
-  2:["A wolf breaks from the treeline before he can turn","Thorns rake deep across his shoulder in the dark",
+  1:["A boar rakes a tusk across the hero's forearm","The badger warren floor gives way underfoot",
+     "A viper strikes from the bramble","The ford's current sweeps the footing away",
+     "A rotten branch drops without warning","A kobold blade finds a gap in the guard",
+     "Brambles hide a snare line that catches the leg","Loose scree gives way on the goat trail"],
+  2:["A wolf breaks from the treeline before the hero can turn","Thorns rake deep across the hero's shoulder in the dark",
      "A spider's bite burns worse than the wound itself","Something in the black sap grips and does not let go",
-     "The March gate timbers give way under his weight","An arrow finds him from a bow he never saw",
-     "The horn sounds and something answers close behind him","The stump-door's rusted seal gives back a blade of its own"],
-  3:["A barrow-wight's grip closes cold around his throat","The flooded stair drops away beneath his boot",
-     "A grave-seal breaks and something reaches out first","The black cistern current pulls him under",
-     "A drowned hand closes on his ankle","The antechamber ceiling comes down in a sheet of stone",
-     "A lantern that isn't there leads him onto broken footing","Something with too many names answers when he counts the doors"],
-  4:["An ember-hound's jaws close before he can draw back","The cinder stair collapses under a boot of ash",
-     "A wall of standing flame catches his sleeve","The burning seam vents without warning",
+     "The March gate timbers give way under their weight","An arrow finds its mark from a bow never seen",
+     "The horn sounds and something answers close behind","The stump-door's rusted seal gives back a blade of its own"],
+  3:["A barrow-wight's grip closes cold around the hero's throat","The flooded stair drops away underfoot",
+     "A grave-seal breaks and something reaches out first","The black cistern current pulls them under",
+     "A drowned hand closes on the ankle","The antechamber ceiling comes down in a sheet of stone",
+     "A lantern that isn't there leads the hero onto broken footing","Something with too many names answers when the doors are counted"],
+  4:["An ember-hound's jaws close before the hero can draw back","The cinder stair collapses under a boot of ash",
+     "A wall of standing flame catches a sleeve","The burning seam vents without warning",
      "A smoke-speaker's bargain turns to something else","The slag bridge gives way mid-crossing",
-     "The bell that rings itself rings for him","An ashfall buries the path faster than he can move"],
-  5:["A grey storm takes the ground out from under him","Something praying turns out to be waiting",
-     "The glass flats open a cut clean through his boot","The last of the water isn't enough, and it shows",
-     "Bootprints that end mid-stride end at him next","The wind uncovers something that should have stayed buried",
-     "A horizon with no landmark hides what's close","The caravan he digs out wasn't waiting to be found"],
-  6:["The fractured spire opens beneath his hand","A crowned thing turns before the killing blow lands",
-     "The burning book's last page ignites the air itself","The seam where the sky split closes on his arm",
+     "The bell that rings itself rings for the hero","An ashfall buries the path faster than the hero can move"],
+  5:["A grey storm takes the ground out from under them","Something praying turns out to be waiting",
+     "The glass flats open a cut clean through the boot","The last of the water isn't enough, and it shows",
+     "Bootprints that end mid-stride end at the hero next","The wind uncovers something that should have stayed buried",
+     "A horizon with no landmark hides what's close","The caravan dug out wasn't waiting to be found"],
+  6:["The fractured spire opens beneath the hero's hand","A crowned thing turns before the killing blow lands",
+     "The burning book's last page ignites the air itself","The seam where the sky split closes on an arm",
      "A siege of one is still a siege","The voice in the crown answers in a language of blades",
-     "The stair he holds gives an inch, then more","The world coming apart takes a piece of him with it"],
+     "The stair underfoot gives an inch, then more","The world coming apart takes a piece of the hero with it"],
 };
 
 const DODGE_TAGS = [
-  "but he's already moving.", "and finds only air.", "a hair too late.",
-  "he's a step ahead of it.", "and it costs him nothing.",
+  "but they're already moving.", "and finds only air.", "a hair too late.",
+  "they're a step ahead of it.", "and it costs them nothing.",
 ];
 
 const CHEATDEATH_LINES = [
-  "It should have ended there. Something refuses to let {name} go, and he claws back to a single breath.",
+  "It should have ended there. Something refuses to let {name} go, and they claw back to a single breath.",
   "{name} goes down — and comes back up. Barely. One breath, held.",
-  "The dark takes {name} and then, impossibly, lets go. He survives on a single breath.",
+  "The dark takes {name} and then, impossibly, lets go — survival, on a single breath.",
 ];
 
 // Epilogue templates for the death screen. ctx fields arrive pre-escaped.
@@ -640,7 +686,7 @@ const EPILOGUES = [
   ctx => `${ctx.name}'s chronicle closes in ${ctx.zone}. ${ctx.killedBy}, and this time nothing answers. ${cap(aOrAn(ctx.race))} ${ctx.race} ${ctx.cls}, level ${ctx.level}, who came further than most and still not far enough.`,
   ctx => `The road ends for ${ctx.name} in ${ctx.zone}. ${ctx.killedBy}. There was no charge left to spend, no breath held in reserve. Level ${ctx.level}, ${aOrAn(ctx.race)} ${ctx.race} ${ctx.cls} — and now a name in the Hall.`,
   ctx => `${ctx.name} does not get up this time. ${ctx.killedBy}, in ${ctx.zone}, at level ${ctx.level} — ${aOrAn(ctx.race)} ${ctx.race} ${ctx.cls} whose story was long enough to matter and short enough to end here.`,
-  ctx => `In ${ctx.zone}, at level ${ctx.level}, the tale of ${ctx.name} the ${ctx.race} ${ctx.cls} finds its last line. ${ctx.killedBy}. The road takes everyone, eventually. It took him here.`,
+  ctx => `In ${ctx.zone}, at level ${ctx.level}, the tale of ${ctx.name} the ${ctx.race} ${ctx.cls} finds its last line. ${ctx.killedBy}. The road takes everyone, eventually. It took ${ctx.name} here.`,
 ];
 
 /* --------------------------------- story ---------------------------------- */
@@ -696,8 +742,8 @@ const ANTAGONIST_TYPES = {
     epithets: ["Unmourned","Bone-Kept","Hollow King","Long-Buried","Sixth Grave","Unburied","Grey Tally","Salt-Eyed","Uncounted","Last Debt"],
     nameFmt: (f,e) => `${f} the ${e}`,
     goals: ["shatter the seventh seal","wake the buried choir beneath the Barrows",
-            "finish the rite his first death interrupted","gather the names of everyone who ever forgot him",
-            "open the door his own death was supposed to close","balance a ledger six centuries overdue"],
+            "finish the rite their first death interrupted","gather the names of everyone who ever forgot them",
+            "open the door their own death was supposed to close","balance a ledger six centuries overdue"],
     dooms: ["the sun will not rise again","every grave in the land will give up what it holds",
             "the dead will simply stop staying down","no name spoken aloud will be remembered by morning",
             "the living will owe a debt none of them agreed to","the count will finally come due"],
@@ -709,14 +755,14 @@ const ANTAGONIST_TYPES = {
     firsts: ["Draven","Corveth","Aldric","Morgrath","Sennovar","Kessa","Ildran","Voss","Tharion","Reyna"],
     epithets: ["Iron Hand","Unyielding","First Wall","Salt Crown","Undefeated","Long Reach","Second Sword","Grey Marshal","Widowmaker","Last Word"],
     nameFmt: (f,e) => `${f} the ${e}`,
-    goals: ["bring every free hold under one banner","finish the conquest his father started and failed",
+    goals: ["bring every free hold under one banner","finish the conquest their father started and failed",
             "break the last free town before the frost","silence the county that still remembers the old king",
-            "complete a road built entirely of debts","crown himself somewhere the gods can't unmake it"],
+            "complete a road built entirely of debts","crown themselves somewhere the gods can't unmake it"],
     dooms: ["there will be no crown left to kneel to","the old borders will mean nothing at all",
             "every town will answer to one name or burn","the free holds will not survive the winter",
-            "the land will be his ledger, and everyone in it a line item","resistance will simply become a word no one remembers"],
+            "the land will be their ledger, and everyone in it a line item","resistance will simply become a word no one remembers"],
     signs: ["a garrison flying a banner no one recognizes","a toll road that wasn't there last season",
-            "a village emptied and re-settled with strangers","a courier who won't say who sent him",
+            "a village emptied and re-settled with strangers","a courier who won't say who sent them",
             "a black-iron standard planted at an unmarked border","a levy notice nailed to a door that's since been burned"],
   },
   dragon: {
@@ -788,13 +834,13 @@ const ACT_MAJOR = {
   1: {
     lich: [
       "{name} takes the road out of town with nothing but a name half-remembered — {antagonist} — spoken by an old woman who wouldn't say more.",
-      "Before {name} has gone a mile, he hears the name {antagonist} muttered like a curse. He doesn't yet know why it makes people cross themselves.",
+      "Before {name} has gone a mile, they hear the name {antagonist} muttered like a curse. They don't yet know why it makes people cross themselves.",
       "The tale that sends {name} onto the road is an old one: {antagonist} was buried once. Somebody should check that it stayed that way.",
     ],
     tyrant: [
       "{name} sets out with a rumor for company: {antagonist} is raising banners two counties over, and asking nothing but obedience.",
       "The road takes {name} past a burned way-marker. Someone has painted {antagonist}'s sigil over the old one.",
-      "{name} leaves with his family's blessing and a warning: stay clear of anywhere flying {antagonist}'s colors.",
+      "{name} leaves with their family's blessing and a warning: stay clear of anywhere flying {antagonist}'s colors.",
     ],
     dragon: [
       "{name} takes the road with the taste of woodsmoke still in the air — the last village {antagonist} passed over left little else.",
@@ -804,22 +850,22 @@ const ACT_MAJOR = {
     plague: [
       "{name} leaves town a day ahead of the quarantine flags. {antagonist} moves slower than a rumor, but it never once stops.",
       "The healer who sends {name} off doesn't call it sickness. She calls it {antagonist}, like it has a mind about where it goes next.",
-      "{name} sets out with a strip of cloth over his face and a warning that {antagonist} has already reached the next valley over.",
+      "{name} sets out with a strip of cloth over their face and a warning that {antagonist} has already reached the next valley over.",
     ],
     god: [
       "{name} takes the road because the shrine elders won't say why the incense keeps going out. They only say the word {antagonist}, and look away.",
-      "{name} sets out under stars that a blind hedge-priest swears have moved. He blames {antagonist}, and nobody laughs at him for it.",
-      "The old prayers have started coming back wrong, is all anyone will tell {name} before he leaves. Something is answering that isn't supposed to be listening — {antagonist}, they call it, when they call it anything.",
+      "{name} sets out under stars that a blind hedge-priest swears have moved, and blames {antagonist} for it. Nobody laughs.",
+      "The old prayers have started coming back wrong, is all anyone will tell {name} before {name} leaves. Something is answering that isn't supposed to be listening — {antagonist}, they call it, when they call it anything.",
     ],
   },
   2: {
     lich: [
       "In the Thornwood, {name} finds a chapel where every grave has been opened from beneath. {antagonist} is not a rumor anymore.",
-      "{name} counts eleven headstones with the names scratched out. The eleventh belonged to someone he'd met. {antagonist}'s work, the locals say, and mean it.",
-      "The dead here don't stay where they're put. {name} has seen the drag-marks himself now. {antagonist} is real, and close.",
+      "{name} counts eleven headstones with the names scratched out. The eleventh belonged to someone {name} had met. {antagonist}'s work, the locals say, and mean it.",
+      "The dead here don't stay where they're put. {name} has seen the drag-marks firsthand now. {antagonist} is real, and close.",
     ],
     tyrant: [
-      "{name} passes a village paying tribute to soldiers who don't answer to any king he's heard of. {antagonist}'s banner flies over the granary.",
+      "{name} passes a village paying tribute to soldiers who don't answer to any king {name}'s heard of. {antagonist}'s banner flies over the granary.",
       "The Thornwood road is patrolled now, by men who took an oath {name} doesn't recognize. {antagonist}'s reach is longer than the stories said.",
       "{name} meets a family walking the other way, carrying everything they own. {antagonist}'s levies took the rest.",
     ],
@@ -830,7 +876,7 @@ const ACT_MAJOR = {
     ],
     plague: [
       "{name} reaches a Thornwood hamlet with its well roped off and its doors marked in chalk. {antagonist} arrived here three days ago.",
-      "The dead in this stretch of wood aren't buried deep enough, and {name} understands why when he sees how many there are. {antagonist} moves faster than anyone's grief.",
+      "The dead in this stretch of wood aren't buried deep enough, and {name} understands why on seeing how many there are. {antagonist} moves faster than anyone's grief.",
       "{name} meets a woman burying her whole family alone. She doesn't have a name for what took them. {antagonist}, {name} thinks, and doesn't say it aloud.",
     ],
     god: [
@@ -843,7 +889,7 @@ const ACT_MAJOR = {
     lich: [
       "In the drowned dark beneath the Barrows, {name} reads what's left of a warning carved by someone who didn't survive writing it: {antagonist} means to {goal}, and there is a date.",
       "{name} finds an entire order of dead priests, still kneeling. Whatever they were trying to stop, {antagonist} finished starting it — the goal was always to {goal}.",
-      "{name} understands now, standing in the flooded nave: this was never one grave. {antagonist} has been building toward this for centuries. He means to {goal}.",
+      "{name} understands now, standing in the flooded nave: this was never one grave. {antagonist} has been building toward this for centuries, and means to {goal}.",
     ],
     tyrant: [
       "{name} finds a war room abandoned in the Barrows' upper halls — maps of every free hold in the region, all pointing toward one campaign. {antagonist} means to {goal}.",
@@ -868,28 +914,28 @@ const ACT_MAJOR = {
   },
   4: {
     lich: [
-      "Emberfall costs {name} something he can't get back — an ally who stood between him and {antagonist}'s reaching hand, and didn't stand up again.",
+      "Emberfall costs {name} something that can't be gotten back — an ally who stood between {name} and {antagonist}'s reaching hand, and didn't stand up again.",
       "{name} pays for ground in the Reach with someone else's life. {antagonist} doesn't take prisoners, only debts.",
-      "The Reach takes something from {name} that gold can't replace. He keeps walking anyway, because {doom} if he doesn't.",
+      "The Reach takes something from {name} that gold can't replace. They keep walking anyway, because {doom} if they don't.",
     ],
     tyrant: [
       "{name} watches Emberfall's last free garrison fall to {antagonist}'s column. Something is lost there that won't be retaken.",
-      "The cost of the Reach is a name {name} won't say again — someone who bought him time against {antagonist} with everything he had.",
-      "{name} loses a friend to a war he didn't start. {antagonist}'s ledger has one more line, and it isn't {antagonist}'s.",
+      "The cost of the Reach is a name {name} won't say again — someone who bought {name} time against {antagonist} with everything they had.",
+      "{name} loses a friend to a war {name} didn't start. {antagonist}'s ledger has one more line, and it isn't {antagonist}'s.",
     ],
     dragon: [
       "Emberfall's fire takes something from {name} that healing can't touch — a companion who didn't clear the ash in time.",
-      "{name} pays for the Reach in a way he didn't expect: not his own blood, but someone else's, standing where he should have.",
+      "{name} pays for the Reach in a way they didn't expect: not their own blood, but someone else's, standing where they should have.",
       "The cost of crossing Emberfall arrives before {name} is ready for it. {antagonist} doesn't ask what it's worth taking.",
     ],
     plague: [
       "{name} loses someone in Emberfall who was fine a week ago. {antagonist} doesn't announce itself before it collects.",
-      "The Reach exacts its cost quietly — {name} realizes too late that the cough he'd stopped noticing was the last warning he'd get.",
-      "{name} pays for passage through Emberfall with a name he'll carry the rest of the road. {antagonist} took it without slowing down.",
+      "The Reach exacts its cost quietly — {name} realizes too late that the cough that had gone unnoticed was the last warning there'd be.",
+      "{name} pays for passage through Emberfall with a name {name} will carry the rest of the road. {antagonist} took it without slowing down.",
     ],
     god: [
-      "Something is asked of {name} in Emberfall, and something is taken whether he agrees or not — {antagonist}'s attention has a cost, and it's already been spent.",
-      "{name} loses someone to a bargain he never got to make. {antagonist} doesn't negotiate; it simply decides.",
+      "Something is asked of {name} in Emberfall, and something is taken whether {name} agrees or not — {antagonist}'s attention has a cost, and it's already been spent.",
+      "{name} loses someone to a bargain {name} never got to make. {antagonist} doesn't negotiate; it simply decides.",
       "The Reach takes its due from {name} in silence. Whatever {antagonist} wanted, it already has it.",
     ],
   },
@@ -900,7 +946,7 @@ const ACT_MAJOR = {
       "There is no more road after this stretch, only the place where {antagonist} is waiting, and {doom} if {name} arrives too late.",
     ],
     tyrant: [
-      "{name} crosses into the Wastes knowing there's only one banner left standing at the end of them — his, or {antagonist}'s.",
+      "{name} crosses into the Wastes knowing there's only one banner left standing at the end of them — {name}'s, or {antagonist}'s.",
       "The march to {antagonist} has stopped being a road and started being a countdown. {name} can feel it.",
       "{name} knows now there's no ground left to give. Past the Wastes is {antagonist}, and past {antagonist} is however this ends.",
     ],
@@ -915,8 +961,8 @@ const ACT_MAJOR = {
       "There's nothing left to lose between here and {antagonist} — {name} understands that now, crossing ground already spent.",
     ],
     god: [
-      "The Wastes go quiet in a way that isn't peace. {name} is walking toward something that's been waiting far longer than he's been alive.",
-      "{name} can feel {antagonist}'s attention now, even at this distance — patient, total, unhurried. It has always known he was coming.",
+      "The Wastes go quiet in a way that isn't peace. {name} is walking toward something that's been waiting far longer than {name}'s been alive.",
+      "{name} can feel {antagonist}'s attention now, even at this distance — patient, total, unhurried. It has always known {name} was coming.",
       "There is no more road after the Wastes, only the place where {antagonist} has been waiting since before there was a name for waiting.",
     ],
   },
@@ -927,14 +973,14 @@ const ACT_MAJOR = {
 // without needing 5x the prose for beats that are, by design, throwaway.
 const ACT_MINOR = {
   1: [
-    "Word reaches {name} on the road: {sign}. He files it away and keeps walking.",
+    "Word reaches {name} on the road: {sign}. {name} files it away and keeps walking.",
     "{name} hears travelers talking in low voices about {sign}. Nobody wants to say the name {antagonist} out loud yet.",
     "A peddler tells {name} about {sign}, then changes the subject fast.",
-    "{name} sees it for himself before the day is out: {sign}.",
+    "{name} sees it firsthand before the day is out: {sign}.",
   ],
   2: [
     "Deeper into the Thornwood, {name} finds {sign}. The pattern is starting to look less like coincidence.",
-    "{name} hears it from a woodcutter who won't meet his eyes: {sign}.",
+    "{name} hears it from a woodcutter who won't meet anyone's eyes: {sign}.",
     "The March keeps its secrets poorly. {name} comes across {sign} without even looking for it.",
     "{name} adds it to the list without meaning to: {sign}. The list is getting long.",
   ],
@@ -942,13 +988,13 @@ const ACT_MINOR = {
     "In the Barrows' flooded dark, {name} finds {sign}. Whatever did this didn't hide it — didn't need to.",
     "{name} reads it in stone, in water-stained parchment, in the shape of the dead themselves: {sign}.",
     "The deeper {name} goes, the less anyone bothers to whisper about it. {sign}, and nobody blinks anymore.",
-    "{name} stops being surprised somewhere around {sign}. He keeps count anyway.",
+    "{name} stops being surprised somewhere around {sign}. {name} keeps count anyway.",
   ],
   4: [
     "Emberfall gives up its secrets grudgingly, but {name} finds {sign} regardless.",
     "{name} passes a place that used to be something else, before {sign}.",
-    "The Reach doesn't explain itself. {name} simply arrives to find {sign}, and moves on before it can happen to him too.",
-    "{name} starts to recognize the pattern before he even sees it: {sign}, same as always.",
+    "The Reach doesn't explain itself. {name} simply arrives to find {sign}, and moves on before it can happen to {name} too.",
+    "{name} starts to recognize the pattern before {name} even sees it: {sign}, same as always.",
   ],
   5: [
     "The Wastes offer {name} one more sign before the end of the road: {sign}.",
@@ -966,18 +1012,18 @@ const ACT_MINOR = {
 const CONFRONTATION_STEPS = 10;
 
 const CONFRONTATION_ANNOUNCE = [
-  "{name} has done what almost no one does: found the strength, and found the means. There is nothing left between him and {antagonist} now.",
+  "{name} has done what almost no one does: found the strength, and found the means. There is nothing left between {name} and {antagonist} now.",
   "The road runs out. What's left is {antagonist}, and whatever is about to happen between them.",
-  "{name} is as ready as the road can make a man. {antagonist} is waiting, and {doom} if he isn't ready enough.",
+  "{name} is as ready as the road can make anyone. {antagonist} is waiting, and {doom} if {name} isn't ready enough.",
 ];
 
 const CONFRONTATION_SEQUENCE = {
   lich: [
     "{name} passes through the last seal into {antagonist}'s sanctum. The air itself seems to hold its breath.",
     "Bones stir in the walls as {name} advances — not attacking yet, only watching.",
-    "{antagonist}'s voice arrives before {antagonist} does, dry as old paper, naming {name} by a name he hasn't used since childhood.",
+    "{antagonist}'s voice arrives before {antagonist} does, dry as old paper, naming {name} by a name unused since childhood.",
     "The dead of the sanctum rise to bar the way. {name} puts them down again, one debt at a time.",
-    "{antagonist} shows {name} exactly what it costs to {goal} — and shows him he intends to pay it anyway.",
+    "{antagonist} shows {name} exactly what it costs to {goal} — and makes clear the cost will be paid regardless.",
     "{name} loses ground, then finds it again in the dark between two heartbeats.",
     "{antagonist}'s hand closes on something that isn't quite {name}'s soul, and doesn't quite let go.",
     "The sanctum floor opens on centuries of the unburied dead, all of them {antagonist}'s, all of them reaching.",
@@ -987,20 +1033,20 @@ const CONFRONTATION_SEQUENCE = {
   tyrant: [
     "{name} breaks through the last checkpoint into {antagonist}'s own hall, past men who stopped believing in the cause an hour ago.",
     "{antagonist}'s personal guard meets {name} at the threshold — the best soldiers the old wars ever produced, and it isn't enough.",
-    "{antagonist} doesn't rise from the seat at first. Watches {name} cross the hall like a man reviewing a report.",
-    "The hall's braziers gutter as the fight spills past the throne itself. {name} gives no ground he doesn't have to.",
-    "{antagonist} fights the way he ruled — without waste, without mercy, and without any plan for losing.",
+    "{antagonist} doesn't rise from the seat at first. Watches {name} cross the hall like someone reviewing a report.",
+    "The hall's braziers gutter as the fight spills past the throne itself. {name} gives no ground beyond what's required.",
+    "{antagonist} fights the way {antagonist} ruled — without waste, without mercy, and without any plan for losing.",
     "{name} takes a wound that would have ended the fight an hour ago. It doesn't end this one.",
-    "{antagonist} names the cost of failure out loud, the way he's named every execution order for years — like arithmetic.",
+    "{antagonist} names the cost of failure out loud, the way every execution order has been named for years — like arithmetic.",
     "The banners of a dozen conquered holds burn around them as the hall itself starts coming apart.",
     "{name} sees it, finally — {antagonist} never planned for an opponent who wouldn't stop.",
     "One exchange decides it. {antagonist}'s ledger runs out of room for one more entry.",
   ],
   dragon: [
     "{name} climbs the last approach to {antagonist}'s roost, air shimmering with heat that hasn't cooled in years.",
-    "{antagonist} doesn't wait to be found. The mountain itself seems to exhale fire as it rises to meet him.",
+    "{antagonist} doesn't wait to be found. The mountain itself seems to exhale fire as it rises to meet {name}.",
     "The first pass takes half the ledge with it. {name} is still standing on what's left.",
-    "{antagonist} circles, patient as old stone, testing {name} the way it's tested every hunter before him.",
+    "{antagonist} circles, patient as old stone, testing {name} the way it's tested every hunter before.",
     "{name} finds the gap in the scale the old stories promised was there. It's smaller than promised.",
     "The roost comes apart around them, ash and old gold raining down together.",
     "{antagonist} lands the blow it's been saving, and {name} is still moving when the dust settles.",
@@ -1014,9 +1060,9 @@ const CONFRONTATION_SEQUENCE = {
     "{antagonist} takes shape the way sickness always does: gradually, and then all at once.",
     "{name} fights something that doesn't tire, doesn't bleed, and doesn't especially care how long this takes.",
     "The ground here has already given up its dead once. {antagonist} isn't finished with them yet.",
-    "{name} feels it working at the edges of him, patient the way only a plague can be patient.",
-    "{antagonist} shows him exactly what {doom} looks like up close, in case he needed convincing.",
-    "There's a moment where {name} isn't sure he's still winning. There's a moment right after where he is.",
+    "{name} feels it working at the edges, patient the way only a plague can be patient.",
+    "{antagonist} shows {name} exactly what {doom} looks like up close, in case convincing was needed.",
+    "There's a moment where the win doesn't feel certain. There's a moment right after where it does.",
     "{antagonist} doesn't retreat — it simply runs out of ground to take.",
     "The last of it comes down to whether {name} outlasts something that was built to outlast everyone.",
   ],
@@ -1025,11 +1071,11 @@ const CONFRONTATION_SEQUENCE = {
     "{antagonist} doesn't announce itself. It simply is, all at once, the way weather is.",
     "{name} understands, fighting it, that this was never going to be a fair exchange.",
     "{antagonist} answers every blow with something almost like curiosity, like it's still deciding whether {name} matters.",
-    "The world tilts around them. {name} keeps his footing by refusing to notice it's happening.",
+    "The world tilts around them. {name} keeps their footing by refusing to notice it's happening.",
     "{antagonist} shows {name} the shape of {doom}, briefly, the way you'd show a child something to make them behave.",
-    "{name} finds the one thing {antagonist} didn't plan for: he isn't afraid of it, not anymore.",
+    "{name} finds the one thing {antagonist} didn't plan for: the fear is gone.",
     "The space between them stops being distance and starts being an argument.",
-    "{antagonist} makes its case for why this should already be over. {name} makes his case by still being there.",
+    "{antagonist} makes its case for why this should already be over. {name} makes the case by still being there.",
     "The last exchange isn't strength against strength. It's whether {name} is still standing when it's finished deciding.",
   ],
 };
@@ -1037,29 +1083,29 @@ const CONFRONTATION_SEQUENCE = {
 // Elevated-peril flavor lines specific to the confrontation (referencing the
 // antagonist by name), rolled the same way rollPeril() rolls from PERILS.
 const CONFRONTATION_PERILS = {
-  lich: ["{antagonist}'s grip closes cold around his throat","The sanctum's dead close in from every side at once",
-         "A blade of pure cold passes clean through where he stood","{antagonist} unmakes the ground beneath his feet",
+  lich: ["{antagonist}'s grip closes cold around {name}'s throat","The sanctum's dead close in from every side at once",
+         "A blade of pure cold passes clean through where {name} stood","{antagonist} unmakes the ground beneath {name}'s feet",
          "The seventh seal answers with something that shouldn't have a name"],
-  tyrant: ["{antagonist}'s blade finds the gap his armor doesn't cover","The guard captain nearly ends it before {antagonist} even moves",
-           "A volley meant for the hall catches him instead","{antagonist} presses an advantage {name} didn't know he'd given",
-           "The throne room itself seems to close in around him"],
-  dragon: ["{antagonist}'s claw rakes clean through his guard","A gout of flame catches the edge of everything he's carrying",
-           "The roost floor gives way beneath both of them at once","{antagonist}'s tail sweeps the ledge out from under him",
+  tyrant: ["{antagonist}'s blade finds the gap {name}'s armor doesn't cover","The guard captain nearly ends it before {antagonist} even moves",
+           "A volley meant for the hall catches {name} instead","{antagonist} presses an advantage {name} didn't realize had been given",
+           "The throne room itself seems to close in around {name}"],
+  dragon: ["{antagonist}'s claw rakes clean through {name}'s guard","A gout of flame catches the edge of everything {name}'s carrying",
+           "The roost floor gives way beneath both of them at once","{antagonist}'s tail sweeps the ledge out from under {name}",
            "Heat alone nearly finishes what the claws didn't"],
-  plague: ["Something in the air finds a way past every ward he has","{antagonist} finds the one crack in his resolve",
-           "A cough that isn't his own catches in his own chest","The sickness moves faster than he can account for",
-           "{antagonist} shows him exactly how this could end, briefly, from the inside"],
-  god: ["{antagonist} answers a blow with something that isn't physical at all","The world itself seems to lean against him for one long moment",
-        "A silence with weight to it nearly stops his heart outright","{antagonist} makes an argument his body almost believes",
+  plague: ["Something in the air finds a way past every ward {name} has","{antagonist} finds the one crack in {name}'s resolve",
+           "A cough that isn't {name}'s own catches in {name}'s own chest","The sickness moves faster than {name} can account for",
+           "{antagonist} shows {name} exactly how this could end, briefly, from the inside"],
+  god: ["{antagonist} answers a blow with something that isn't physical at all","The world itself seems to lean against {name} for one long moment",
+        "A silence with weight to it nearly stops {name}'s heart outright","{antagonist} makes an argument {name}'s body almost believes",
         "Something ancient and patient nearly wins on patience alone"],
 };
 
 // Fired the instant the tenth step resolves without a death.
 const ASCENSION_LINES = {
   lich: ["The seventh seal does not shatter. {antagonist}'s long unmaking finishes here instead — undone by {name}, of all people.",
-         "{antagonist}'s grip finally opens. What's left of him doesn't rise again."],
+         "{antagonist}'s grip finally opens. What's left of {antagonist} doesn't rise again."],
   tyrant: ["{antagonist}'s banner comes down for the last time. There is no one left to raise it.",
-           "The conquest ends where it started — with one man refusing to fall."],
+           "The conquest ends where it started — with one person refusing to fall."],
   dragon: ["{antagonist} falls from a height it never expected to fall from. The Reach goes quiet for the first time in years.",
            "The fire finally goes out. {name} is still standing in the ash."],
   plague: ["Whatever {antagonist} was, it stops spreading. {name} is the reason it stops.",
@@ -1072,9 +1118,9 @@ const ASCENSION_LINES = {
 // types since ctx.antagonist/goal/doom already carry the flavor. ctx fields
 // arrive pre-escaped, same convention as EPILOGUES.
 const ASCENSION_EPILOGUES = [
-  ctx => `${ctx.name}'s chronicle does not end in a grave. ${ctx.antagonist} will never ${ctx.goal} — not now, not ever. Level ${ctx.level}, ${aOrAn(ctx.race)} ${ctx.race} ${ctx.cls}, and the rarest kind of ending: one he walked away from.`,
+  ctx => `${ctx.name}'s chronicle does not end in a grave. ${ctx.antagonist} will never ${ctx.goal} — not now, not ever. Level ${ctx.level}, ${aOrAn(ctx.race)} ${ctx.race} ${ctx.cls}, and the rarest kind of ending: one ${ctx.name} walked away from.`,
   ctx => `The road ends for ${ctx.name} the way almost no road does: standing. ${ctx.antagonist} is finished, and so is everything it promised. Level ${ctx.level}, ${aOrAn(ctx.race)} ${ctx.race} ${ctx.cls} — a name for the Hall that isn't followed by a date.`,
-  ctx => `${ctx.name} does the one thing almost no one manages: he finishes the story instead of becoming a casualty in it. ${ctx.antagonist} will not ${ctx.goal}. Level ${ctx.level}, ${aOrAn(ctx.race)} ${ctx.race} ${ctx.cls}, and the chronicle closes on a hero still breathing.`,
+  ctx => `${ctx.name} does the one thing almost no one manages: finishes the story instead of becoming a casualty in it. ${ctx.antagonist} will not ${ctx.goal}. Level ${ctx.level}, ${aOrAn(ctx.race)} ${ctx.race} ${ctx.cls}, and the chronicle closes on a hero still breathing.`,
   ctx => `It comes down to one exchange, in the end, and ${ctx.name} is the one left standing. ${cap(ctx.doom)} was the threat, once. Now it is a story with an ending nobody has to dread. Level ${ctx.level}, ${aOrAn(ctx.race)} ${ctx.race} ${ctx.cls}, ascended.`,
 ];
 
@@ -1316,8 +1362,37 @@ const NAME_TITLES = [
   "the Quiet","Longstride","the Steady","Cinderborn","the Watchful","Roadworn",
   "the Last","Emberkin","the Patient","Graveward",
 ];
-function rollHeroName(meta){
-  const pool = NAME_FIRST.slice();
+// Per-race first-name banks (item 4) — distinct phonetic character per race so
+// a dwarf and an elf don't share a drawer of names. NAME_FIRST (above) stays
+// the human bank AND the no-race-chosen-yet fallback, since humans are this
+// setting's phonetic baseline. Ancient/Titles pools still layer on top of
+// whichever bank is active, race-specific or generic — see rollHeroName().
+const NAME_FIRST_BY_RACE = {
+  human: NAME_FIRST,
+  dwarf: [
+    "Thrain","Borgni","Dunrik","Kaldera","Ovrik","Skarna","Brogun","Helka",
+    "Torvald","Ingra","Baldrek","Runa","Grimolf","Astryd","Dovrik","Frenna",
+  ],
+  elf: [
+    "Lythien","Saeril","Ithrandil","Vaelis","Naeryn","Thalindra","Elowen","Sylvaeth",
+    "Aerendyl","Miriel","Caelynn","Ondathiel","Faelar","Yssandra","Lorindil","Ashariel",
+  ],
+  halfling: [
+    "Tobin","Marigold","Pip","Rosalind","Bramwell","Daisy","Wendell","Poppy",
+    "Fennick","Tilly","Ambrose","Nettle","Corby","Willow","Milo","Primrose",
+  ],
+  orc: [
+    "Grosh","Uzgak","Morg","Vrakka","Thok","Zug","Krusha","Ghazak",
+    "Drogul","Snagra","Ruk","Vazgul","Horgash","Mogra","Skarn","Uggath",
+  ],
+  tiefling: [
+    "Zeviel","Nyxara","Malachai","Seraphine","Kairothis","Vashira","Damaris","Ozyra",
+    "Thessaly","Ravazir","Isadorae","Cyrenth","Morwyn","Azraea","Solenne","Kethrax",
+  ],
+};
+function rollHeroName(meta, raceKey){
+  const base = (raceKey && NAME_FIRST_BY_RACE[raceKey]) ? NAME_FIRST_BY_RACE[raceKey] : NAME_FIRST;
+  const pool = base.slice();
   if (meta && meta.unlocks && meta.unlocks.ancientNames) pool.push(...NAME_ANCIENT);
   let name = pick(pool);
   if (meta && meta.unlocks && meta.unlocks.titleNames && rng() < 0.5) name += " " + pick(NAME_TITLES);
@@ -1558,7 +1633,7 @@ function levelUp(S){
   if (h.level === 25 && CLASSES[h.cls].tier === 1){
     S.world.pendingChoice = {kind:"class2", options: ADVANCED_OF[h.cls]};
     S.world.state = "AWAITING_CHOICE";
-    logEvent(S, "choice", `${h.name} feels the shape of what he might become.`, 2);
+    logEvent(S, "choice", `${h.name} feels the shape of what they might become.`, 2);
     return;
   }
   // Skill picks at the design doc's eight milestone levels (§8) — same
@@ -1569,7 +1644,7 @@ function levelUp(S){
     if (opts.length){
       S.world.pendingChoice = {kind:"skill", options: opts};
       S.world.state = "AWAITING_CHOICE";
-      logEvent(S, "choice", `${h.name} has learned enough to refine his craft.`, 2);
+      logEvent(S, "choice", `${h.name} has learned enough to refine their craft.`, 2);
       return;
     }
   }
@@ -1750,7 +1825,7 @@ function rollDrop(S){
     const imp = (item.tier === "epic" || item.tier === "legendary") ? 2 : 1;
     const text = equipped
       ? `${h.name} finds ${itemPhrase(item)} — it outclasses the ${equipped.name} and takes its place.`
-      : `${h.name} finds ${itemPhrase(item)} and arms himself with it.`;
+      : `${h.name} finds ${itemPhrase(item)} and arms themselves with it.`;
     logEvent(S, "gear", text, imp);
     return;
   }
@@ -1766,7 +1841,7 @@ function beginMerchantTrip(S){
   S.world.state = "TRAVELING";
   S.world.travelKind = "merchant_out";
   S.world.travelMsLeft = MERCHANT_SECONDS * 1000;
-  logEvent(S, "travel", `${S.hero.name}'s pack is full. He turns back toward town.`, 1);
+  logEvent(S, "travel", `${S.hero.name}'s pack is full. Time to turn back toward town.`, 1);
 }
 
 function doMerchantTrip(S){
@@ -1800,7 +1875,7 @@ function doMerchantTrip(S){
   }
 
   // Keep buying upgrades for the weakest slot, re-evaluating after each
-  // purchase, while he can afford them and they're a genuine upgrade — capped
+  // purchase, while they're affordable and a genuine upgrade — capped
   // per trip (merchantMaxBuys) so a rich hero re-kits, not re-kits forever.
   const bought = [];
   let blockedByPrice = false;
@@ -1890,14 +1965,14 @@ function doMerchantTrip(S){
 // afford what was on offer). Kept the same grim, grounded register as
 // PERILS/DODGE_TAGS rather than a receipt.
 const MERCHANT_REKIT_LINES = [
-  "leaves the stall a harder man to kill than he walked in",
-  "spends like he expects to need every bit of it",
+  "leaves the stall harder to kill than they walked in",
+  "spends like they expect to need every bit of it",
   "walks out re-kitted, lighter of purse and heavier of gear",
 ];
 const MERCHANT_PRICED_OUT_LINES = [
-  "what's worth having tonight is priced past him",
-  "the good gear wants a richer man's coin",
-  "he counts his coin twice and still can't stretch to it",
+  "what's worth having tonight is priced past reach",
+  "the good gear wants a deeper purse than this one",
+  "counts the coin twice and still can't stretch to it",
 ];
 
 function merchantTripLine(h, soldCount, earned, bought, commissioned, blockedByPrice){
@@ -1911,8 +1986,8 @@ function merchantTripLine(h, soldCount, earned, bought, commissioned, blockedByP
   else if (blockedByPrice) outcome = `but ${pick(MERCHANT_PRICED_OUT_LINES)}`;
 
   let text = `${h.name} makes for the merchant's stall — ${soldPart}${outcome ? " " + outcome : ""}. `;
-  if (commissioned) text += `He pays a hard premium to have ${itemPhrase(commissioned)} made to order. `;
-  text += `Wounds close, breath comes easy again, and he turns back to the road.`;
+  if (commissioned) text += `${h.name} pays a hard premium to have ${itemPhrase(commissioned)} made to order. `;
+  text += `Wounds close, breath comes easy again, and ${h.name} turns back to the road.`;
   return text;
 }
 
@@ -1944,7 +2019,7 @@ function completeTask(S){
   S.stats.goldEarned += gold;
 
   // Regen lands before the peril roll, so the day's toll is measured against
-  // a topped-up hero rather than whatever HP he happened to end the last task at.
+  // a topped-up hero rather than whatever HP the hero happened to end the last task at.
   h.hp = Math.min(d.maxHP, h.hp + d.regenPerTask);
 
   logEvent(S, "task", `${w.taskName} — ${xp} xp, ${gold} gold.`, 0);
@@ -2373,7 +2448,7 @@ function bootCatchUp(){
     startLiveLoop();
     return;
   }
-  // Night events are stamped from the moment he was left alone, forward.
+  // Night events are stamped from the moment the hero was left alone, forward.
   if (!S.world.clock || S.world.clock > S.lastTick) S.world.clock = S.lastTick;
   const before = snapshot();
   renderCatchupProgress(0, total);
@@ -2453,11 +2528,19 @@ function fmtDur(ms){
 let activeTab = "stats";
 let metaView = null;          // null | "hall" | "achievements" — meta-scoped, outlives any hero
 let retireConfirmOpen = false;
+// Shown once before EACH hero's creation form (every hero is a new story), not
+// just the first time the game is ever opened. Reset to false wherever a hero's
+// story ends and S goes back to null (layrest / ascend-rest / retireHero), so
+// it's armed again the next time render() finds no live hero.
+let prologueSeen = false;
 
 function render(){
   if (metaView === "hall"){ renderHall(); return; }
   if (metaView === "achievements"){ renderAchievements(); return; }
-  if (!S){ renderCreation(); return; }
+  if (!S){
+    if (!prologueSeen){ renderPrologue(); return; }
+    renderCreation(); return;
+  }
   if (retireConfirmOpen){ renderRetireConfirm(); return; }
   if (S.world.state === "DEAD"){ renderDeath(); return; }
   if (S.world.state === "ASCENDED"){ renderAscension(); return; }
@@ -2465,14 +2548,34 @@ function render(){
   renderMain();
 }
 
+// A small atmospheric beat before the hero-creation form — one screen, no
+// scroll, sets up the premise (you make them, then you let go) in the same
+// grim, grounded voice as the TASKS/PERILS/ARRIVAL/EPILOGUES banks.
+function renderPrologue(){
+  app.innerHTML = `
+    <div class="card">
+      <h2>Before the Road</h2>
+      <p class="muted tiny">You will give them a name, and a blood, and a direction. That is the whole of your part.</p>
+      <p class="muted tiny">After that they walk out past where you can follow, and the road decides the rest —
+        what they become, what they survive, what finally stops them. Come back when you can.
+        The chronicle will be waiting, however it reads.</p>
+      <button class="btn" id="prologue-continue" style="margin-top:10px">Make Your Hero</button>
+    </div>`;
+  document.getElementById("prologue-continue").addEventListener("click", () => {
+    prologueSeen = true;
+    render();
+  });
+}
+
 // Small nav row shown on both the between-heroes creation screen and the
 // live hero screen — Hall of Legends and Achievements are meta-scoped and
 // outlive any single hero, so they get their own views rather than a 5th/6th
-// tab bolted onto the hero-scoped tab bar.
+// tab bolted onto the hero-scoped tab bar. Real buttons (not text links) so
+// they read as primary navigation and stay easy to tap on a phone.
 function metaNavBar(){
-  return `<div style="display:flex; justify-content:center; gap:20px; margin-bottom:14px">
-    <button class="dismiss" id="nav-hall" type="button">Hall of Legends</button>
-    <button class="dismiss" id="nav-ach" type="button">Achievements</button>
+  return `<div style="display:flex; gap:10px; margin-bottom:14px">
+    <button class="btn ghost" id="nav-hall" type="button" style="flex:1; min-width:0">Hall of Legends</button>
+    <button class="btn ghost" id="nav-ach" type="button" style="flex:1; min-width:0">Achievements</button>
   </div>`;
 }
 function wireMetaNav(){
@@ -2509,7 +2612,7 @@ function renderCreation(){
     ${popJustUnlockedBanner()}
     <div class="card">
       <h2>A New Hero</h2>
-      <p class="muted tiny">You choose his name and his blood. After that he is on his own.</p>
+      <p class="muted tiny">You choose their name and their blood. After that fate will determine their path.</p>
       <label for="hname">Name</label>
       <div style="display:flex; gap:8px">
         <input type="text" id="hname" maxlength="18" autocomplete="off" spellcheck="false" style="flex:1; min-width:0">
@@ -2522,7 +2625,7 @@ function renderCreation(){
           <span>${esc(modText(RACES[k].mods))} · <em>${esc(RACES[k].trait)}</em>: ${esc(RACES[k].traitText)}</span>
         </button>`).join("")}
       </div>
-      <button class="btn" id="begin" disabled style="margin-top:8px">Send Him Out</button>
+      <button class="btn" id="begin" disabled style="margin-top:8px">Begin the adventure</button>
     </div>`;
 
   wireMetaNav();
@@ -2532,7 +2635,10 @@ function renderCreation(){
   const refresh = () => { beginEl.disabled = !(chosen && nameEl.value.trim().length >= 2); };
 
   document.getElementById("rollname").addEventListener("click", () => {
-    nameEl.value = rollHeroName(META);
+    // Reacts to whatever race is selected AT THE MOMENT the button is pressed
+    // (`chosen` is reassigned by the race-pick handler below, read here fresh
+    // on every click) — generic bank if no race chosen yet, per-race bank once one is.
+    nameEl.value = rollHeroName(META, chosen);
     refresh();
   });
   app.querySelectorAll("[data-race]").forEach(b => b.addEventListener("click", () => {
@@ -2568,8 +2674,8 @@ function renderChoice(){
   const isSkill = c.kind === "skill";
   const heading = isSkill ? "A New Discipline" : "The Road Forks";
   const prompt = isSkill
-    ? `${esc(S.hero.name)} has learned enough to refine his craft. He will not go further until he chooses.`
-    : `${esc(S.hero.name)} has reached level ${S.hero.level}. He will not go further until he chooses.`;
+    ? `${esc(S.hero.name)} has learned enough to refine their craft. A path must be chosen.`
+    : `${esc(S.hero.name)} has reached level ${S.hero.level}. A path must be chosen.`;
   const options = c.options.map(k => {
     if (isSkill){
       const sk = SKILLS[k];
@@ -2589,7 +2695,7 @@ function renderChoice(){
       <h2>${heading}</h2>
       <p class="muted tiny" style="margin-top:0">
         ${prompt}
-        ${banked > 5000 ? `<br><span class="gold">${esc(fmtDur(banked))} of the night is still waiting on this.</span>` : ""}
+        ${banked > 5000 ? `<br><span class="gold">${esc(fmtDur(banked))} of the adventure awaits your choice.</span>` : ""}
       </p>
       <div style="margin-top:12px">${options}</div>
     </div></div>`;
@@ -2609,7 +2715,7 @@ function renderDeath(){
   const ctx = {
     name: esc(h.name), race: esc(RACES[h.race].name), cls: esc(CLASSES[h.cls].name),
     level: h.level, zone: esc(ZONES[w.zone-1].name),
-    killedBy: esc(w.killedBy || "Something in the dark finally caught him"),
+    killedBy: esc(w.killedBy || "Something in the dark finally caught them"),
   };
   const epilogue = EPILOGUES[w.epilogueIdx || 0](ctx);   // ctx already escaped — don't esc() this again
   // Clamped: a save migrated from before birthTime moved onto the simulated
@@ -2642,7 +2748,7 @@ function renderDeath(){
         <div>Perils survived &middot; ${fmt(S.stats.perilsSurvived)}</div>
       </div>
     </div>
-    <button class="btn" id="layrest">Lay Him to Rest</button>`;
+    <button class="btn" id="layrest">Lay Them to Rest</button>`;
 
   document.getElementById("layrest").addEventListener("click", () => {
     META.hall.push({
@@ -2657,12 +2763,13 @@ function renderDeath(){
     saveMeta();
     try { localStorage.removeItem(SAVE_KEY); } catch(e){}
     S = null;
+    prologueSeen = false;   // next hero is a new story — show the prologue again
     render();
   });
 }
 
 // Ascension epilogue (design doc §10) — mirrors renderDeath() exactly in
-// structure, distinct in tone: the hero survived his own ending.
+// structure, distinct in tone: the hero survived their own ending.
 function renderAscension(){
   const h = S.hero, w = S.world, d = derived(h, S.gear);
   const t = w.thread || {};
@@ -2670,7 +2777,7 @@ function renderAscension(){
     name: esc(h.name), race: esc(RACES[h.race].name), cls: esc(CLASSES[h.cls].name),
     level: h.level,
     antagonist: esc(t.antagonist || "the dark"),
-    goal: esc(t.goal || "finish what he started"),
+    goal: esc(t.goal || "finish what they started"),
     doom: esc(t.doom || "the worst would have come to pass"),
   };
   const epilogue = ASCENSION_EPILOGUES[w.ascensionEpilogueIdx || 0](ctx);   // ctx already escaped
@@ -2711,6 +2818,7 @@ function renderAscension(){
     saveMeta();
     try { localStorage.removeItem(SAVE_KEY); } catch(e){}
     S = null;
+    prologueSeen = false;   // next hero is a new story — show the prologue again
     render();
   });
 }
@@ -2723,9 +2831,9 @@ function renderRetireConfirm(){
   app.innerHTML = `
     <div class="modal"><div class="card">
       <h2>Retire ${esc(h.name)}?</h2>
-      <p class="muted tiny">He steps off the road while he still can — not a death, a choice.
-        He enters the Hall of Legends as <b>Retired</b>, and you start fresh with a new hero.</p>
-      <button class="btn" id="retire-confirm" style="margin-top:14px">Yes, Retire Him</button>
+      <p class="muted tiny">They step off the road while they still can — not a death, a choice.
+        They enter the Hall of Legends as <b>Retired</b>, and you start fresh with a new hero.</p>
+      <button class="btn" id="retire-confirm" style="margin-top:14px">Yes, Retire Them</button>
       <button class="btn ghost" id="retire-cancel" style="margin-top:8px">Never Mind</button>
     </div></div>`;
   document.getElementById("retire-confirm").addEventListener("click", retireHero);
@@ -2740,13 +2848,14 @@ function retireHero(){
     name: h.name, race: h.race, cls: h.cls,
     classPath: h.classPath.map(k => (CLASSES[k] ? CLASSES[k].name : k)),
     level: h.level, zone: w.zone, hoursLived: r2(lived / 3600000),
-    cause: "Stepped off the road while he still could", status: "Retired", at: w.clock,
+    cause: "Stepped off the road while they still could", status: "Retired", at: w.clock,
   });
   trimHall(META);
   saveMeta();
   try { localStorage.removeItem(SAVE_KEY); } catch(e){}
   S = null;
   retireConfirmOpen = false;
+  prologueSeen = false;   // next hero is a new story — show the prologue again
   render();
 }
 
@@ -2856,6 +2965,7 @@ function renderMain(){
   if (dis) dis.addEventListener("click", () => { pendingSummary = null; render(); });
   const retireBtn = document.getElementById("retire-btn");
   if (retireBtn) retireBtn.addEventListener("click", () => { retireConfirmOpen = true; render(); });
+  wireChronicleFilters();
 }
 function pct(a, b){ return Math.max(0, Math.min(100, (a / b) * 100)).toFixed(1) + "%"; }
 
@@ -2903,6 +3013,52 @@ function entryKindClass(e){
   return "";
 }
 
+// Chronicle filter categories (item 8) — derived straight from the log's
+// existing `type` field (and entryKindClass's imp-aware gear check) rather
+// than inventing a parallel taxonomy. "travel" is the one type shared by two
+// different beats (a plain zone departure vs. the pack-full trip to town), so
+// it's split by a text match, the same trick entryKindClass already uses for
+// epic vs. legendary gear. Selection lives in a module-level Set — a render
+// concern only, never persisted to the save.
+const CHRONICLE_CATEGORIES = [
+  {key:"task",        label:"Tasks"},
+  {key:"gear",         label:"Gear"},
+  {key:"skill",        label:"Skills"},
+  {key:"story",        label:"Story"},
+  {key:"danger",       label:"Danger"},
+  {key:"merchant",     label:"Merchant"},
+  {key:"achievement",  label:"Achievements"},
+];
+const CHRONICLE_TYPE_TO_CATEGORY = {
+  task: "task",
+  gear: "gear",
+  skill: "skill", class: "skill", choice: "skill",
+  story: "story", birth: "story", zone: "story",
+  peril: "danger", neardeath: "danger", cheatdeath: "danger",
+  death: "danger", confrontation: "danger", ascension: "danger", trigger: "danger",
+  merchant: "merchant",
+  achievement: "achievement",
+};
+function chronicleCategory(e){
+  if (e.type === "travel") return /pack is full/i.test(e.text) ? "merchant" : "story";
+  return CHRONICLE_TYPE_TO_CATEGORY[e.type] || "story";
+}
+// All categories on by default, matching the spec. Not persisted — a fresh
+// load always shows everything.
+let chronicleFilters = new Set(CHRONICLE_CATEGORIES.map(c => c.key));
+function chronicleFilterBar(){
+  return `<div class="chipbar">${CHRONICLE_CATEGORIES.map(c => `
+    <button class="chip" type="button" data-filter="${c.key}" aria-pressed="${chronicleFilters.has(c.key)}">${esc(c.label)}</button>`
+  ).join("")}</div>`;
+}
+function wireChronicleFilters(){
+  app.querySelectorAll("[data-filter]").forEach(b => b.addEventListener("click", () => {
+    const k = b.dataset.filter;
+    if (chronicleFilters.has(k)) chronicleFilters.delete(k); else chronicleFilters.add(k);
+    render();
+  }));
+}
+
 function summaryCard(s, opts){
   opts = opts || {};
   const lines = [];
@@ -2948,6 +3104,10 @@ function heroStatusHtml(){
 // apart with nothing pruned at all. The threshold has to clear that
 // natural sparsity comfortably so it only fires on an actual return visit
 // (which in practice is hours, not minutes), not on a quiet stretch of road.
+// Session boundaries are always computed from the FULL (unfiltered) log, so
+// category filtering (see chronicleFilters above) never distorts which
+// entries count as "a real sitting" — filtering only trims what's shown
+// inside each session afterward (see tabBody()'s chronicle branch).
 const SESSION_GAP_MS = 90 * 60 * 1000;
 function chronicleSessions(log){
   const sessions = [];
@@ -3021,10 +3181,21 @@ function tabBody(){
       <button class="btn ghost" id="retire-btn" style="margin-top:14px">Retire Hero</button>`;
   }
   if (activeTab === "chronicle"){
-    if (!S.log.length) return `<div class="empty">Nothing written yet.</div>`;
-    // Newest sitting on top, chronological within it — see chronicleSessions().
-    const sessions = chronicleSessions(S.log).reverse();
-    return `<h2>Chronicle</h2><div class="log">${
+    const filterBar = chronicleFilterBar();
+    if (!S.log.length) return `<h2>Chronicle</h2>${filterBar}<div class="empty">Nothing written yet.</div>`;
+    // Strict newest-first throughout: newest sitting on top, and within it
+    // entries run newest-to-oldest, so the very top line is always the most
+    // recent thing that happened. Sessions are grouped on the FULL log first
+    // (see chronicleSessions()), then filtered/reversed per-session, then any
+    // session left with nothing visible is dropped rather than rendering an
+    // empty header.
+    const sessions = chronicleSessions(S.log)
+      .map(sess => ({start: sess.start,
+        entries: sess.entries.filter(e => chronicleFilters.has(chronicleCategory(e))).reverse()}))
+      .filter(sess => sess.entries.length)
+      .reverse();
+    if (!sessions.length) return `<h2>Chronicle</h2>${filterBar}<div class="empty">No entries match the selected filters.</div>`;
+    return `<h2>Chronicle</h2>${filterBar}<div class="log">${
       sessions.map(sess => sessionHtml(sess, h.name)).join("")}</div>`;
   }
   if (activeTab === "skills") return skillsTabBody();
@@ -3284,11 +3455,17 @@ window.GQ = {
   // Phase 7 — meta-progression, achievements, Hall of Legends.
   ACHIEVEMENTS, ACHIEVEMENT_KEYS, unlockAchievement, onHeroDeath, checkFullRareSet,
   attachMeta, invSlots, HALL_MAX, trimHall, NAME_FIRST, NAME_ANCIENT, NAME_TITLES,
+  NAME_FIRST_BY_RACE,
   rollHeroName, defaultMeta, migrateMeta, loadMeta, saveMeta, retireHero,
   renderHall, renderAchievements, renderRetireConfirm,
   get metaView(){ return metaView; }, set metaView(v){ metaView = v; },
   get retireConfirmOpen(){ return retireConfirmOpen; }, set retireConfirmOpen(v){ retireConfirmOpen = v; },
   get justUnlocked(){ return justUnlocked; },
+  // Items 2 & 8 — prologue screen and chronicle category filters.
+  renderPrologue,
+  get prologueSeen(){ return prologueSeen; }, set prologueSeen(v){ prologueSeen = v; },
+  CHRONICLE_CATEGORIES, chronicleCategory,
+  get chronicleFilters(){ return chronicleFilters; }, set chronicleFilters(v){ chronicleFilters = v; },
   setSeed(seed){ rng = mulberry32(seed); },
   useRandom(){ rng = Math.random; },
 };
