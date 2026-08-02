@@ -1,0 +1,3327 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Go Quest</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@500;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+:root{
+  --bg:#14110f; --bg2:#1c1815; --panel:#221d19; --line:#3a322b;
+  --ink:#e8dcc8; --ink-dim:#a1907a; --ink-mute:#6f6355;
+  --gold:#c9a227; --gold-lit:#e8c25a;
+  --blood:#a33b32; --leaf:#6f9a5c; --sky:#5b87b8;
+  /* gear quality tiers — design doc §9, exact hex values */
+  --tier-common:#9ca3af; --tier-uncommon:#4ade80; --tier-rare:#60a5fa;
+  --tier-epic:#c084fc; --tier-legendary:#fbbf24;
+}
+*{box-sizing:border-box}
+body{
+  margin:0; background:var(--bg); color:var(--ink);
+  font-family:Inter,system-ui,sans-serif; font-size:15px; line-height:1.5;
+  -webkit-text-size-adjust:100%;
+}
+.wrap{max-width:620px; margin:0 auto; padding:16px 14px 64px}
+h1,h2,h3{font-family:Cinzel,Georgia,serif; font-weight:700; margin:0}
+.title{text-align:center; letter-spacing:.22em; font-size:26px; color:var(--gold);
+  padding:12px 0 4px; text-transform:uppercase}
+.title-rule{height:1px; background:linear-gradient(90deg,transparent,var(--line) 20%,var(--line) 80%,transparent); margin:0 0 18px}
+
+.card{background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:14px; margin-bottom:12px}
+.card h2{font-size:15px; letter-spacing:.12em; text-transform:uppercase; color:var(--gold); margin-bottom:10px}
+.muted{color:var(--ink-dim)}
+.tiny{font-size:12.5px}
+
+/* bars */
+.bar{height:9px; background:#0e0b09; border:1px solid var(--line); border-radius:5px; overflow:hidden}
+.bar > i{display:block; height:100%; background:var(--leaf); transition:width .25s linear}
+.bar.hp > i{background:linear-gradient(90deg,#8c2f28,#c04a3e)}
+.bar.xp > i{background:linear-gradient(90deg,#7a5f16,var(--gold))}
+.bar.task > i{background:linear-gradient(90deg,#3f5f7f,var(--sky))}
+.barrow{display:grid; grid-template-columns:34px 1fr auto; gap:9px; align-items:center; margin:7px 0; font-size:12.5px}
+.barrow b{color:var(--ink-dim); font-weight:500; letter-spacing:.06em}
+.barrow span{color:var(--ink-dim); white-space:nowrap}
+
+.heroline{font-family:Cinzel,serif; font-size:19px; color:var(--ink)}
+.herosub{font-size:13px; color:var(--ink-dim); margin-top:2px}
+.footrow{display:flex; justify-content:space-between; align-items:center; margin-top:11px;
+  padding-top:10px; border-top:1px solid var(--line); font-size:13px}
+.zonedot{color:var(--leaf)}
+.gold{color:var(--gold)}
+
+/* tabs */
+.tabs{display:grid; grid-template-columns:repeat(4,1fr); gap:6px; margin-bottom:12px}
+.tabs button{
+  font:inherit; font-size:13px; letter-spacing:.05em; padding:10px 4px; cursor:pointer;
+  background:var(--bg2); color:var(--ink-dim); border:1px solid var(--line); border-radius:8px;
+}
+.tabs button[aria-selected="true"]{background:var(--panel); color:var(--gold); border-color:var(--gold)}
+
+/* stats */
+.statgrid{display:grid; grid-template-columns:1fr 1fr; gap:8px 14px}
+.stat{display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--line)}
+.stat b{font-weight:500; color:var(--ink-dim)}
+.stat i{font-style:normal; font-variant-numeric:tabular-nums}
+.effects{margin-top:12px; font-size:12.5px; color:var(--ink-dim)}
+.effects div{padding:3px 0}
+
+/* gear */
+.gearlist{display:flex; flex-direction:column}
+.gearslot{padding:9px 0; border-bottom:1px solid var(--line)}
+.gearslot:last-child{border-bottom:none}
+.gearslot b{display:block; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-mute)}
+.itemname{font-family:Cinzel,serif; font-size:14.5px; margin-top:2px}
+
+/* chronicle — sessions (real sittings, by time-gap) each hold chapter breaks
+   (zone arrivals) and entries. Rendered newest-session-first; entries within
+   a session run oldest-to-newest so a night still reads top-to-bottom. */
+.log{display:flex; flex-direction:column}
+.session-head{display:flex; align-items:center; gap:10px; margin:22px 0 12px;
+  color:var(--ink-mute); font-size:10.5px; letter-spacing:.14em; text-transform:uppercase}
+.session:first-child .session-head{margin-top:0}
+.session-head::before, .session-head::after{content:""; flex:1; height:1px; background:var(--line)}
+
+/* chapter break — a zone arrival (Act transition), the chronicle's chapter headers */
+.chapter{text-align:center; margin:26px 0 18px; padding:0 4px}
+.chapter .chapter-rule{height:1px; margin:0 auto 12px; max-width:140px;
+  background:linear-gradient(90deg,transparent,var(--gold) 30%,var(--gold) 70%,transparent)}
+.chapter b{display:block; font-family:Cinzel,serif; font-size:16.5px; letter-spacing:.06em;
+  color:var(--gold-lit); overflow-wrap:anywhere}
+.chapter span{display:block; font-size:12.5px; color:var(--ink-dim); margin-top:7px;
+  font-family:Inter,sans-serif; line-height:1.65; overflow-wrap:anywhere}
+
+.entry{padding:5px 0; border-bottom:1px solid #2a241f; font-size:13.5px; color:var(--ink-mute);
+  overflow-wrap:anywhere}
+.entry time{color:#4d443a; font-variant-numeric:tabular-nums; margin-right:8px; font-size:12px}
+.entry.imp0{font-size:12.5px; opacity:.75}
+.entry.imp1{color:var(--ink)}
+.entry.imp2{color:var(--ink); background:#1a1613; border-left:2px solid var(--gold);
+  padding:10px 12px; margin:8px 0; border-bottom:none; border-radius:0 6px 6px 0;
+  font-family:Cinzel,serif; font-size:14px; line-height:1.6}
+.entry.imp2 time{display:block; margin:0 0 4px; font-family:Inter,sans-serif}
+
+/* weight for the entries that matter most — death/ascension carry the most,
+   cheat-death and rare drops catch the eye via the tier colors already defined */
+.entry.k-death{border-left-color:var(--blood); background:#201412}
+.entry.k-ascension{border-left-color:var(--gold-lit); background:#241d10;
+  box-shadow:0 0 0 1px rgba(232,194,90,.18) inset}
+.entry.k-cheatdeath{border-left-color:var(--blood)}
+/* near-death is imp1 (a plain line, not a bordered imp2 card) but still
+   needs to catch the eye per spec — a left accent without the full card
+   treatment keeps it a step below cheat-death/death in weight. */
+.entry.imp1.k-neardeath{border-left:2px solid var(--blood); padding-left:9px}
+.entry.k-confrontation{border-left-color:var(--blood)}
+.entry.k-achievement{border-left-color:var(--gold-lit); color:var(--gold-lit)}
+.entry.k-gear-epic{border-left-color:var(--tier-epic); color:var(--tier-epic)}
+.entry.k-gear-legendary{border-left-color:var(--tier-legendary); color:var(--tier-legendary)}
+
+/* buttons + choices */
+.btn{display:block; width:100%; font:inherit; font-size:15px; padding:13px; cursor:pointer;
+  background:var(--gold); color:#1a1510; border:none; border-radius:8px; font-weight:600;
+  letter-spacing:.04em}
+.btn.ghost{background:transparent; color:var(--ink-dim); border:1px solid var(--line)}
+.btn:disabled{opacity:.4; cursor:default}
+.pick{display:block; width:100%; text-align:left; font:inherit; cursor:pointer; margin-bottom:9px;
+  background:var(--bg2); color:var(--ink); border:1px solid var(--line); border-radius:9px; padding:13px}
+.pick[aria-pressed="true"]{border-color:var(--gold); background:#241f18}
+.pick b{display:block; font-family:Cinzel,serif; font-size:15px; color:var(--gold-lit); margin-bottom:3px}
+.pick span{display:block; font-size:12.5px; color:var(--ink-dim)}
+
+.modal{position:fixed; inset:0; background:rgba(8,6,5,.86); display:flex; align-items:center;
+  justify-content:center; padding:16px; z-index:50; overflow-y:auto}
+.modal .card{max-width:520px; width:100%; margin:auto}
+
+label{display:block; font-size:12.5px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-dim); margin:14px 0 6px}
+input[type=text]{width:100%; font:inherit; font-size:16px; padding:11px; background:var(--bg2);
+  color:var(--ink); border:1px solid var(--line); border-radius:8px}
+input[type=text]:focus{outline:none; border-color:var(--gold)}
+
+.wywa{border-color:var(--gold)}
+.wywa ul{margin:8px 0 0; padding-left:18px; font-size:13.5px}
+.wywa li{padding:2px 0}
+.wywa-notable{margin-top:10px; padding-top:10px; border-top:1px solid var(--line);
+  display:flex; flex-direction:column; gap:6px}
+.wn-item{font-size:13px; color:var(--ink-dim); padding-left:11px; position:relative; line-height:1.5;
+  overflow-wrap:anywhere}
+.wn-item::before{content:""; position:absolute; left:0; top:.55em; width:5px; height:5px;
+  border-radius:50%; background:var(--ink-mute)}
+.wn-item.k-death::before, .wn-item.k-cheatdeath::before, .wn-item.k-confrontation::before, .wn-item.k-neardeath::before{background:var(--blood)}
+.wn-item.k-ascension::before, .wn-item.k-achievement::before{background:var(--gold-lit)}
+.wn-item.k-gear-epic::before{background:var(--tier-epic)}
+.wn-item.k-gear-legendary::before{background:var(--tier-legendary)}
+.wywa-status{margin:10px 0 0; padding-top:9px; border-top:1px solid var(--line); font-size:13px}
+.dismiss{background:none; border:none; color:var(--ink-mute); font:inherit; font-size:13px;
+  cursor:pointer; padding:10px 0 0; text-decoration:underline}
+.empty{color:var(--ink-mute); font-size:13.5px; text-align:center; padding:22px 0}
+
+/* restrained motion — respected always; the only things that ever move are a
+   fresh WYWA card, the newest chronicle line, and a level-up. Nothing here
+   runs on the 250ms live tick. */
+@media (prefers-reduced-motion: no-preference){
+  .wywa-in{animation:cardIn .5s ease-out}
+  .session:first-child > .entry:last-child,
+  .session:first-child > .chapter:last-child{animation:entryIn .5s ease-out}
+  .heroline.levelup{animation:levelFlash 1.2s ease-out}
+  @keyframes cardIn{from{opacity:0; transform:translateY(-6px)} to{opacity:1; transform:none}}
+  @keyframes entryIn{from{opacity:0; transform:translateY(4px)} to{opacity:1; transform:none}}
+  @keyframes levelFlash{
+    0%{text-shadow:0 0 0 rgba(232,194,90,0)}
+    35%{text-shadow:0 0 16px rgba(232,194,90,.85)}
+    100%{text-shadow:0 0 0 rgba(232,194,90,0)}
+  }
+}
+
+/* mobile — Rob reads this on a phone in the morning; single column already,
+   this just tightens the tab bar and title so nothing wraps or overflows
+   down at 375px. No horizontal scroll anywhere, at any width. */
+@media (max-width:400px){
+  .wrap{padding:12px 10px 56px}
+  .title{font-size:21px; letter-spacing:.14em}
+  .tabs{gap:5px}
+  .tabs button{font-size:11.5px; padding:13px 2px; letter-spacing:.02em}
+  .heroline{font-size:17px}
+  .card{padding:12px}
+}
+html, body{overflow-x:hidden; max-width:100%}
+</style>
+
+<div class="wrap">
+  <h1 class="title">Go Quest</h1>
+  <div class="title-rule"></div>
+  <div id="app"></div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================================
+   GO QUEST — single-file idle RPG.
+   Phase 1 (skeleton) + Phase 2 (offline catch-up + headless harness).
+
+   ARCHITECTURE RULE, load-bearing for everything that comes later:
+   the simulation core below (advance / completeTask / levelUp / derived) NEVER
+   touches the DOM and never reads wall-clock time. It mutates a state object
+   passed to it and takes randomness from a swappable `rng`. That is what makes
+   simulate(1000) possible. Later phases (perils, gear, skills, story) must add
+   their logic INSIDE that core, not in the render layer.
+   ========================================================================= */
+
+/* ---------------------------------- data --------------------------------- */
+
+const SAVE_KEY = "goquest_hero";
+const META_KEY = "goquest_meta";
+const SAVE_VERSION = 6;
+const META_VERSION = 2;
+
+const TASK_DURATION   = 25;      // seconds, before STR reduction
+const TRAVEL_SECONDS  = 90;      // zone change
+const MERCHANT_SECONDS = 60;     // each leg of a merchant trip (there and back)
+const INVENTORY_SLOTS  = 12;
+const MAX_OFFLINE_HRS = 48;
+const CATCHUP_BATCH   = 200;     // tasks per setTimeout slice
+const LOG_ROUTINE_MAX = 300;
+const SKILL_LEVELS = [5, 15, 20, 30, 35, 40, 45, 50];   // design doc §8 acquisition levels
+
+// Every number the death curve is sensitive to lives here so the harness can
+// sweep them. Change balance HERE, never at the call site.
+const BALANCE = {
+  regenBase:    0.006,   // fraction of maxHP regenerated per task
+  regenConDiv:  60,      // CON's extra multiplier on regen: (1 + min(CON,cap)/div)
+  regenConCap:  60,      // ...CON above this stops helping. The cap is the point.
+  gearBudget:   0.18,    // stat points per point of itemScore
+  merchantHeal: 1.00,    // fraction of maxHP restored by a merchant trip
+  perilDmgMult: 3.00,    // global scalar on the zone damage ranges
+  perilChanceMult: 1.00, // global scalar on the zone peril frequencies
+  xpCurveMult:  1.45,    // scalar on xpToNext — the arc-length knob
+  evasionCap:   0.50,    // DEX stops buying evasion here. Raising it is what
+                         // gives the DEX classes defensive scaling at all —
+                         // past the cap, DEX is a dead stat defensively.
+  dmgHpBlend:   0.35,    // 1 = damage is % of the hero's OWN maxHP (design doc
+                         // as written); 0 = % of a level-referenced HP pool.
+                         // See the note below — this one is a design decision.
+  skillMitigationCap: 0.60, // stacked mitigation skills can't reduce peril dmg past this
+  skillTaskSpeedFloor: 0.50,// stacked task-speed skills can't cut task time past this fraction
+  skillBuyMultFloor:   0.40,// stacked buy-discount skills can't cut merchant prices past this
+
+  // --- Gold economy (design doc §9 merchant trips). Zone `gold` income climbs
+  // ~40x zone1->zone6 while itemScore (and so unadjusted price) only climbed
+  // ~3-4x, so prices fell further and further behind income the deeper a hero
+  // got — by zone 4 one merchant cycle's income was 7.6x the cost of a full
+  // re-kit. See doMerchantTrip() for how these combine. ---
+  buyPriceMult:  6,     // base merchant buy price per point of itemScore (was a bare literal)
+  sellPriceMult: 2,     // base sell value per point of itemScore (was a bare literal)
+  priceZoneExp:  1.00,  // curve exponent on (zone.gold / ZONES[0].gold) — re-anchors price to
+                        // the SAME curve income already climbs, so gold becomes a real
+                        // constraint deep in the run without turning it into a wall.
+                        // Measured at 1.0: spend-per-cycle rises from ~11% of income (zone 1,
+                        // unchanged — it's the reference zone) to ~31-39% of income (zones 3-6),
+                        // up from ~10-15% before this change, with zero heroes stranded unable
+                        // to afford the L48+ relic guarantee.
+  merchantMaxBuys: 4,   // cap on upgrade purchases per merchant trip — the merchant now keeps
+                        // buying weakest-slot upgrades while they're affordable and genuine,
+                        // but a rich hero re-kits, not re-kits forever
+  commissionPriceMult: 5.0, // premium over an ordinary purchase for guaranteeing a specific
+                            // slot's tier instead of hoping stock rolls well
+  commissionTier: "epic",   // Guaranteed floor tier a commission buys, and the single most
+                            // important number in the economy. Repricing alone did NOT make
+                            // gold scarce (surplus at death actually ROSE to 258k): the
+                            // merchant's real bottleneck was never price, it was that rolled
+                            // stock rarely beats gear a hero already owns after 200+ drops.
+                            // Only quality he cannot get from drops absorbs the surplus —
+                            // at "epic" it falls to ~75k. Note the curve is not monotonic:
+                            // "legendary" at 14x leaves MORE gold than "epic" at 5x, because
+                            // a price that steep means he commissions far less often.
+                            // Commissioning still cannot satisfy the ascension gate — the
+                            // relic slot is skipped while that guarantee is pending.
+
+  // --- Phase 6: the final confrontation. New knobs, none of the above
+  // touched — the lead tunes these independently of the regular death curve. ---
+  // Tuned so the confrontation culls level-50 heroes from ~12.8% reaching the
+  // gate to ~6.7% ascending — the middle of the design doc's 5-10% target.
+  confrontPerilChance: 0.50,   // per-step peril chance during the confrontation (zone6 is 12%)
+  confrontDmgMin: 0.60,        // min fraction of the blended HP pool (refHP/maxHP) per hit
+  confrontDmgMax: 0.90,        // max fraction of the blended HP pool per hit
+  confrontRegenMult: 0.30,     // partial regen between confrontation steps — no merchant heal mid-fight
+  confrontRelicLegendaryChance: 0.15, // odds the guaranteed L48+ relic rolls legendary instead of epic
+};
+/* Why peril damage references a level-typical HP pool instead of the hero's own:
+   The doc (§7) makes damage a percentage of maxHP so the danger curve stays
+   stable as HP scales. It does — but it also means a hero's own maxHP is
+   worthless defensively, since bigger pool and bigger hits cancel exactly. That
+   silently deletes Constitution as a survival stat, and with it the doc's
+   central tension (§4). Measured with pure %maxHP: Apprentices out-survived
+   Soldiers 59% to 29% — INT was strictly dominant, being both faster per level
+   (fewer tasks) and no more dangerous.
+   Referencing a level-typical pool keeps the curve indexed on one number per
+   zone (the doc's actual goal) while making CON's extra HP genuinely absorb
+   hits. INT still races; CON now actually survives. */
+function refHP(level){ return 114 + 14.4 * level; }
+/* Why the CON regen term is CAPPED rather than raw or removed:
+   maxHP already contains CON*8, and peril damage is a percentage of maxHP, so
+   an uncapped (1 + CON/40) makes regen scale with CON^2 while incoming damage
+   scales linearly. Gear pushed CON to ~206 and regen to 89 HP/task against 28
+   of damage — nothing could die.
+   But removing the term entirely goes too far the other way: when damage AND
+   regen are both percentages of maxHP, extra maxHP buys nothing and CON becomes
+   mechanically inert. Measured: Apprentices then out-survived Soldiers 49 to 14,
+   inverting the design doc's central tension (§4).
+   Capping keeps CON a real survivability stat over its natural range while
+   denying gear the runaway. Protect this relationship during future tuning. */
+
+const STAT_KEYS = ["str","dex","con","int","wis","cha"];
+const STAT_NAME = {str:"Strength",dex:"Dexterity",con:"Constitution",
+                   int:"Intelligence",wis:"Wisdom",cha:"Charisma"};
+
+const RACES = {
+  human:    {name:"Human",    mods:{str:1,dex:1,con:1,int:1,wis:1,cha:1},
+             trait:"Ambitious", traitText:"+5% experience", xpMult:1.05, starter:true},
+  dwarf:    {name:"Dwarf",    mods:{con:4,str:2,dex:-2},
+             trait:"Stoneblood", traitText:"+10% regeneration", regenMult:1.10, starter:true},
+  elf:      {name:"Elf",      mods:{dex:4,int:3,con:-3},
+             trait:"Keen Sight", traitText:"+3% evasion", evasionBonus:0.03, starter:true},
+  halfling: {name:"Halfling", mods:{cha:3,dex:3,str:-2},
+             trait:"Lucky", traitText:"+4% gear drop chance", dropBonus:0.04},
+  orc:      {name:"Orc",      mods:{str:5,con:3,int:-3,cha:-2},
+             trait:"Brutal", traitText:"+8% combat task speed", taskSpeedMult:0.92},
+  tiefling: {name:"Tiefling", mods:{int:4,cha:3,wis:-2},
+             trait:"Infernal Pact", traitText:"one extra cheat-death charge", bonusCheatDeath:1},
+};
+
+// Stat weighting decides how the +3 points per level are distributed.
+// Tier 2 classes (Phase 5) fork four ways off each tier 1 at L25 (design doc
+// §6) and each carries a `passive` — a SKILLS key granted automatically on
+// advancement, not offered as a choice. Exact weighting numbers are a tuning
+// pass per the doc, not a design decision; the shape (what each class leans
+// into) is what matters here.
+const CLASSES = {
+  novice:     {name:"Novice", tier:0,
+               weights:{str:.5,dex:.5,con:.5,int:.5,wis:.5,cha:.5},
+               blurb:"Untested. Everything still ahead of him."},
+  soldier:    {name:"Soldier", tier:1,
+               weights:{str:1.2,dex:.4,con:1.0,int:.1,wis:.2,cha:.1},
+               blurb:"Slow, heavy, hard to kill. The long road to ascension."},
+  scout:      {name:"Scout", tier:1,
+               weights:{str:.5,dex:1.3,con:.5,int:.3,wis:.3,cha:.1},
+               blurb:"Evasive and quick. Takes the hits he chooses to take."},
+  apprentice: {name:"Apprentice", tier:1,
+               weights:{str:.1,dex:.4,con:.4,int:1.4,wis:.6,cha:.1},
+               blurb:"Levels fastest, dies deepest. Arrives at danger early."},
+
+  // --- Soldier's four (§6) ---
+  knight:      {name:"Knight", tier:2,
+                weights:{str:1.0,dex:.3,con:1.3,int:.1,wis:.5,cha:.3},
+                blurb:"Iron discipline. He does not fall so much as refuse to.",
+                passive:"bulwark_stance"},
+  berserker:   {name:"Berserker", tier:2,
+                weights:{str:1.8,dex:.5,con:.6,int:.1,wis:0,cha:.1},
+                blurb:"Speed is armor, in his accounting. He is not always right.",
+                passive:"bloodlust"},
+  warden:      {name:"Warden", tier:2,
+                weights:{str:.6,dex:.2,con:1.8,int:.1,wis:1.2,cha:.1},
+                blurb:"Built to last, not to hurry. He intends to see the end.",
+                passive:"wardens_vigil"},
+  dragoon:     {name:"Dragoon", tier:2,
+                weights:{str:1.1,dex:1.0,con:.7,int:.1,wis:.2,cha:.1},
+                blurb:"He closes distance faster than caution can follow.",
+                passive:"spoils_of_the_charge"},
+
+  // --- Scout's four (§6) ---
+  ranger:      {name:"Ranger", tier:2,
+                weights:{str:.4,dex:1.4,con:.5,int:.2,wis:.9,cha:.1},
+                blurb:"He has already noticed what is about to go wrong.",
+                passive:"read_the_ground"},
+  assassin:    {name:"Assassin", tier:2,
+                weights:{str:.6,dex:1.8,con:.3,int:.3,wis:.2,cha:.1},
+                blurb:"He takes what he needs and is gone before the body's found.",
+                passive:"cutpurse"},
+  duelist:     {name:"Duelist", tier:2,
+                weights:{str:.3,dex:2.0,con:.4,int:.2,wis:.2,cha:.1},
+                blurb:"One clean line, over and over, faster each time.",
+                passive:"perfect_form"},
+  beastmaster: {name:"Beastmaster", tier:2,
+                weights:{str:.6,dex:1.0,con:.9,int:.2,wis:.4,cha:.4},
+                blurb:"He does not walk alone, whatever the log says.",
+                passive:"companions_warning"},
+
+  // --- Apprentice's four (§6) ---
+  wizard:      {name:"Wizard", tier:2,
+                weights:{str:.1,dex:.3,con:.5,int:1.6,wis:.9,cha:.1},
+                blurb:"He studies the shape of the danger before it studies him.",
+                passive:"arcane_mastery"},
+  sorcerer:    {name:"Sorcerer", tier:2,
+                weights:{str:.1,dex:.3,con:.2,int:2.2,wis:.3,cha:.1},
+                blurb:"He is already three doors further in than is wise.",
+                passive:"font_of_power"},
+  warlock:     {name:"Warlock", tier:2,
+                weights:{str:.1,dex:.4,con:.5,int:1.3,wis:.4,cha:.7},
+                blurb:"Every bargain has a cost. He hasn't found this one's yet.",
+                passive:"pact_bound"},
+  alchemist:   {name:"Alchemist", tier:2,
+                weights:{str:.2,dex:.4,con:.9,int:1.1,wis:.6,cha:.3},
+                blurb:"He has a tincture for most of what the road does to a man.",
+                passive:"waste_not"},
+};
+
+// Which four tier-2 classes each tier-1 class forks into at L25.
+const ADVANCED_OF = {
+  soldier: ["knight","berserker","warden","dragoon"],
+  scout: ["ranger","assassin","duelist","beastmaster"],
+  apprentice: ["wizard","sorcerer","warlock","alchemist"],
+};
+
+/* --------------------------------- skills --------------------------------- */
+// A small set of effect KINDS rather than bespoke code per skill (design doc
+// §8). `SKILLS` is the flavor+effect registry; `SKILL_POOLS` decides which
+// keys a given class offers at its choice gates. Signature passives (granted
+// automatically at L25, not chosen) live in the same registry so they use the
+// exact same aggregation and log-trigger code as picked skills.
+//
+// Pool sizing is load-bearing, not arbitrary: tier-1 pools (2 draws, L15/L20)
+// need >=3 entries, tier-2 pools (5 draws, L30/35/40/45/50) need >=6, and a
+// tier-1 pool must share NO keys with its own tier-2 children's pools (a hero
+// can own at most 2 tier-1 picks by the time tier-2 draws start; zero overlap
+// guarantees all 6 tier-2 entries are still fresh). Novice's 1 draw can safely
+// overlap a future tier-1 pool by at most 1 key. See rollSkillOptions().
+const SKILLS = {
+  // --- flat stat bonus ---
+  iron_grip:      {name:"Iron Grip", blurb:"+6 Strength.", effect:{kind:"stat", stat:"str", amount:6}},
+  quick_hands:    {name:"Quick Hands", blurb:"+6 Dexterity.", effect:{kind:"stat", stat:"dex", amount:6}},
+  thick_hide:     {name:"Thick Hide", blurb:"+6 Constitution.", effect:{kind:"stat", stat:"con", amount:6}},
+  keen_mind:      {name:"Keen Mind", blurb:"+6 Intelligence.", effect:{kind:"stat", stat:"int", amount:6}},
+  steady_nerve:   {name:"Steady Nerve", blurb:"+6 Wisdom.", effect:{kind:"stat", stat:"wis", amount:6}},
+  silver_tongue:  {name:"Silver Tongue", blurb:"+6 Charisma.", effect:{kind:"stat", stat:"cha", amount:6}},
+
+  // --- multiplier ---
+  arcane_insight: {name:"Arcane Insight", blurb:"+10% experience.", effect:{kind:"mult", target:"xp", amount:0.10}},
+  battle_focus:   {name:"Battle Focus", blurb:"+8% experience from hard-won fights.", effect:{kind:"mult", target:"xp", amount:0.08}},
+  prospectors_eye:{name:"Prospector's Eye", blurb:"+12% gold from every task.", effect:{kind:"mult", target:"gold", amount:0.12}},
+  road_sense:     {name:"Road Sense", blurb:"+15% gold — he knows where the coin hides.", effect:{kind:"mult", target:"gold", amount:0.15}},
+
+  // --- task speed ---
+  cleave:         {name:"Cleave", blurb:"-8% task duration.", effect:{kind:"taskSpeed", amount:0.08}},
+  fleet_step:     {name:"Fleet Step", blurb:"-10% task duration.", effect:{kind:"taskSpeed", amount:0.10}},
+  efficient_hand: {name:"Efficient Hand", blurb:"-6% task duration.", effect:{kind:"taskSpeed", amount:0.06}},
+
+  // --- damage mitigation ---
+  parry:          {name:"Parry", blurb:"-12% peril damage.", effect:{kind:"mitigation", amount:0.12}},
+  hardened_scales:{name:"Hardened Scales", blurb:"-10% peril damage.", effect:{kind:"mitigation", amount:0.10}},
+  ward_sign:      {name:"Ward Sign", blurb:"-14% peril damage.", effect:{kind:"mitigation", amount:0.14}},
+
+  // --- triggered ---
+  second_wind:    {name:"Second Wind", blurb:"Once per merchant cycle, heal 30% of max HP when it drops below 20%.",
+                   effect:{kind:"triggered", event:"lowHp", threshold:0.20, once:"merchantCycle", healFrac:0.30,
+                           text:"{name}'s Second Wind pulls him back from the brink — {amt} HP restored."}},
+  last_gasp:      {name:"Last Gasp", blurb:"Once per merchant cycle, heal 25% of max HP when it drops below 15%.",
+                   effect:{kind:"triggered", event:"lowHp", threshold:0.15, once:"merchantCycle", healFrac:0.25,
+                           text:"{name} finds one more breath somewhere — {amt} HP restored."}},
+
+  blood_high:     {name:"Blood High", blurb:"Once per merchant cycle, heal 28% of max HP when it drops below 25%.",
+                   effect:{kind:"triggered", event:"lowHp", threshold:0.25, once:"merchantCycle", healFrac:0.28,
+                           text:"Something in {name} refuses the arithmetic — {amt} HP back, and he goes forward."}},
+  field_tincture: {name:"Field Tincture", blurb:"Once per merchant cycle, heal 35% of max HP when it drops below 30%.",
+                   effect:{kind:"triggered", event:"lowHp", threshold:0.30, once:"merchantCycle", healFrac:0.35,
+                           text:"{name} works the stopper loose with his teeth and drinks — {amt} HP restored."}},
+
+  // --- evasion: the DEX answer to soaking (see skillAgg) ---
+  shadow_step:    {name:"Shadow Step", blurb:"+7% evasion — he is not where the blow lands.",
+                   effect:{kind:"evasion", amount:0.07}},
+  sidestep:       {name:"Sidestep", blurb:"+5% evasion.", effect:{kind:"evasion", amount:0.05}},
+  cover_ground:   {name:"Cover Ground", blurb:"+6% evasion — distance is its own armor.",
+                   effect:{kind:"evasion", amount:0.06}},
+  spellguard:     {name:"Spellguard", blurb:"+6% evasion — the air thickens a moment before it needs to.",
+                   effect:{kind:"evasion", amount:0.06}},
+
+  // --- cheat death ---
+  ancestral_ward: {name:"Ancestral Ward", blurb:"Survive one lethal blow at 1 HP.",
+                   effect:{kind:"cheatdeath", amount:1,
+                           text:"The Ancestral Ward flares. {name} survives on a single breath."}},
+  grim_luck:      {name:"Grim Luck", blurb:"Survive one lethal blow at 1 HP.",
+                   effect:{kind:"cheatdeath", amount:1,
+                           text:"By some grim luck, {name} is still breathing."}},
+
+  // --- economy ---
+  haggler:        {name:"Haggler", blurb:"+20% sell value.", effect:{kind:"economy", target:"sell", amount:0.20}},
+  shrewd_buyer:   {name:"Shrewd Buyer", blurb:"-15% merchant prices.", effect:{kind:"economy", target:"buy", amount:0.15}},
+
+  // --- drop quality ---
+  treasure_sense: {name:"Treasure Sense", blurb:"+1 quality tier roll weight on drops.", effect:{kind:"dropQuality", amount:1}},
+  loremans_eye:   {name:"Loreman's Eye", blurb:"Slightly better drop quality.", effect:{kind:"dropQuality", amount:0.6}},
+
+  // --- signature passives, granted automatically at L25 (never offered as a pick) ---
+  bulwark_stance:      {name:"Bulwark Stance", blurb:"-10% peril damage, always.", effect:{kind:"mitigation", amount:0.10}},
+  bloodlust:           {name:"Bloodlust", blurb:"Survive one lethal blow at 1 HP — he does not notice it landing.",
+                        effect:{kind:"cheatdeath", amount:1,
+                                text:"{name} is too far gone in it to fall. The blow lands and he keeps swinging."}},
+  wardens_vigil:       {name:"Warden's Vigil", blurb:"Survive one lethal blow at 1 HP.",
+                        effect:{kind:"cheatdeath", amount:1,
+                                text:"The Warden's Vigil holds. {name} survives on a single breath."}},
+  spoils_of_the_charge:{name:"Momentum", blurb:"+8% evasion — nothing that slow gets a clean line on him.",
+                        effect:{kind:"evasion", amount:0.08}},
+  read_the_ground:     {name:"Read the Ground", blurb:"-8% peril damage, always.", effect:{kind:"mitigation", amount:0.08}},
+  // Signature passives. These used to hand the weakest classes economy effects,
+  // which is the same as handing them nothing — gold is never the constraint.
+  cutpurse:            {name:"Cutpurse", blurb:"+8% evasion — he is gone before the body's found.",
+                        effect:{kind:"evasion", amount:0.08}},
+  perfect_form:        {name:"Perfect Form", blurb:"+8 Dexterity, permanently.", effect:{kind:"stat", stat:"dex", amount:8}},
+  companions_warning:  {name:"Companion's Warning",
+                        blurb:"Once per merchant cycle, heal 25% of max HP when it drops below 20%.",
+                        effect:{kind:"triggered", event:"lowHp", threshold:0.20, once:"merchantCycle", healFrac:0.25,
+                                text:"{name}'s companion drags him back from the brink — {amt} HP restored."}},
+  arcane_mastery:      {name:"Arcane Mastery", blurb:"+12% experience, always.", effect:{kind:"mult", target:"xp", amount:0.12}},
+  font_of_power:       {name:"Font of Power", blurb:"+10 Intelligence, permanently.", effect:{kind:"stat", stat:"int", amount:10}},
+  pact_bound:          {name:"Pact-Bound", blurb:"Survive one lethal blow at 1 HP.",
+                        effect:{kind:"cheatdeath", amount:1,
+                                text:"The pact answers. Something else pays the price, and {name} rises on a single breath."}},
+  waste_not:           {name:"Waste Not", blurb:"-11% peril damage — he has a salve for most of it.",
+                        effect:{kind:"mitigation", amount:0.11}},
+};
+
+const SKILL_POOLS = {
+  novice:     ["iron_grip","quick_hands","keen_mind"],
+  soldier:    ["thick_hide","parry","cleave","haggler"],
+  scout:      ["quick_hands","fleet_step","treasure_sense","haggler"],
+  apprentice: ["keen_mind","arcane_insight","steady_nerve","prospectors_eye"],
+
+  // Pool composition IS the balance lever here. Survival tracked almost exactly
+  // with "how many defensive skills does this pool contain" — Warden had 5 and
+  // survived 48%, Dragoon and Alchemist had 0 and survived ~2%. Economy skills
+  // are strictly worse than a blank pick (gold runs ~470x surplus by endgame),
+  // so a pool loaded with them is a pool with fewer real choices. Every pool
+  // below now carries at least 3 defensive options, in the flavor that suits
+  // how that class actually fights: soak for the Soldier line, evasion for the
+  // Scout line, wards and tinctures for the Apprentice line.
+  // Knight carries a mitigation passive (bulwark_stance) on top of its picks, so
+  // four defensive options here made it match Warden's five and take the top
+  // slot. Warden is meant to be THE ascension specialist — keep Knight one notch
+  // below by spending a slot on offense.
+  knight:      ["hardened_scales","ward_sign","second_wind","iron_grip","road_sense","ancestral_ward"],
+  berserker:   ["iron_grip","fleet_step","blood_high","battle_focus","grim_luck","hardened_scales"],
+  warden:      ["steady_nerve","hardened_scales","ward_sign","second_wind","last_gasp","ancestral_ward"],
+  dragoon:     ["iron_grip","cover_ground","fleet_step","sidestep","second_wind","efficient_hand"],
+
+  ranger:      ["steady_nerve","parry","loremans_eye","second_wind","hardened_scales","road_sense"],
+  assassin:    ["shadow_step","efficient_hand","sidestep","grim_luck","cleave","second_wind"],
+  duelist:     ["parry","battle_focus","second_wind","sidestep","grim_luck","hardened_scales"],
+  beastmaster: ["thick_hide","silver_tongue","second_wind","last_gasp","road_sense","ward_sign"],
+
+  wizard:      ["ward_sign","loremans_eye","second_wind","battle_focus","spellguard","hardened_scales"],
+  sorcerer:    ["battle_focus","spellguard","treasure_sense","last_gasp","grim_luck","efficient_hand"],
+  warlock:     ["silver_tongue","spellguard","grim_luck","ancestral_ward","road_sense","quick_hands"],
+  alchemist:   ["thick_hide","field_tincture","keen_mind","treasure_sense","loremans_eye","ward_sign"],
+};
+
+const ZONES = [
+  {n:1, name:"Verdant Hollow",   min:1,  max:9,  xp:40,  gold:8,   ilvl:[1,10],  peril:.03, dmg:[.02,.04]},
+  {n:2, name:"Thornwood March",  min:10, max:18, xp:175, gold:22,  ilvl:[10,20], peril:.04, dmg:[.04,.06]},
+  {n:3, name:"Sunken Barrows",   min:19, max:28, xp:320, gold:55,  ilvl:[20,30], peril:.05, dmg:[.06,.09]},
+  // Zones 4-6 are steepened against the design doc's table: with a flat curve
+  // too many heroes died in Act IV, which dragged median lifespan below target.
+  // A steeper late curve concentrates death where the story wants it.
+  {n:4, name:"Emberfall Reach",  min:29, max:36, xp:420, gold:110, ilvl:[30,38], peril:.07, dmg:[.07,.10]},
+  {n:5, name:"The Ashen Wastes", min:37, max:44, xp:440, gold:200, ilvl:[38,46], peril:.09, dmg:[.12,.17]},
+  {n:6, name:"The Riven Crown",  min:45, max:50, xp:530, gold:340, ilvl:[46,55], peril:.12, dmg:[.19,.27]},
+];
+
+const TASKS = {
+  1:["Clearing a badger warren","Escorting a herbalist to the ford","Driving off a tusked boar",
+     "Mending the shrine palings","Tracking a lost goat through bramble","Setting snares along the deer path",
+     "Hauling water from the moss-well","Chasing kobolds out of the millrace"],
+  2:["Cutting a path through the briar wall","Burning out a spider nest","Standing watch at the March gate",
+     "Following a trail of black sap","Hunting the wolf that took the miller's boy","Prying a rusted seal from a stump-door",
+     "Fording the Thorn at dusk","Answering a horn in the deep wood"],
+  3:["Descending a flooded stair","Reading names off a drowned lintel","Putting down a barrow-wight",
+     "Draining a collapsed antechamber","Following a lantern that isn't there","Breaking a grave-seal",
+     "Wading the black cistern","Counting doors that weren't there yesterday"],
+  4:["Crossing a bridge of cooling slag","Dousing an ember-hound","Climbing the cinder stair",
+     "Bargaining with a smoke-speaker","Hauling ore from a burning seam","Cutting through a wall of standing flame",
+     "Sheltering from an ashfall","Silencing a bell that rings itself"],
+  5:["Walking a horizon with no landmark","Digging out a buried caravan","Outlasting a grey storm",
+     "Following bootprints that end mid-stride","Rationing the last of the water","Killing something that was praying",
+     "Crossing the glass flats at noon","Burying what the wind uncovered"],
+  6:["Climbing the fractured spire","Holding a stair against the tide","Cutting down a crowned thing",
+     "Reading the last page of a burning book","Walking the seam where the sky split","Breaking a siege of one",
+     "Answering the voice in the crown","Standing where the world comes apart"],
+};
+
+const ARRIVAL = {
+  1:"The road out of town is soft with rain. {name} walks it alone.",
+  2:"The Thornwood closes overhead like a shut door. Something in it is awake.",
+  3:"The Barrows have been underwater for six hundred years. They are not empty.",
+  4:"Emberfall Reach glows from below. The stone here has never finished burning.",
+  5:"The Ashen Wastes take a day to cross and remember everyone who tries.",
+  6:"The Riven Crown stands split against the sky. This is where it ends, one way or another.",
+};
+
+// Peril incident bank, one per zone. Reused for both the hit and the dodge
+// line (a DODGE_TAG appended reframes the same incident as a near-miss), so
+// the flavor cost stays at 6-8 lines per zone rather than 12-16.
+const PERILS = {
+  1:["A boar rakes a tusk across his forearm","The badger warren floor gives way beneath him",
+     "A viper strikes from the bramble","The ford's current takes his footing",
+     "A rotten branch drops without warning","A kobold blade finds a gap in his guard",
+     "Brambles hide a snare line that catches his leg","Loose scree gives way on the goat trail"],
+  2:["A wolf breaks from the treeline before he can turn","Thorns rake deep across his shoulder in the dark",
+     "A spider's bite burns worse than the wound itself","Something in the black sap grips and does not let go",
+     "The March gate timbers give way under his weight","An arrow finds him from a bow he never saw",
+     "The horn sounds and something answers close behind him","The stump-door's rusted seal gives back a blade of its own"],
+  3:["A barrow-wight's grip closes cold around his throat","The flooded stair drops away beneath his boot",
+     "A grave-seal breaks and something reaches out first","The black cistern current pulls him under",
+     "A drowned hand closes on his ankle","The antechamber ceiling comes down in a sheet of stone",
+     "A lantern that isn't there leads him onto broken footing","Something with too many names answers when he counts the doors"],
+  4:["An ember-hound's jaws close before he can draw back","The cinder stair collapses under a boot of ash",
+     "A wall of standing flame catches his sleeve","The burning seam vents without warning",
+     "A smoke-speaker's bargain turns to something else","The slag bridge gives way mid-crossing",
+     "The bell that rings itself rings for him","An ashfall buries the path faster than he can move"],
+  5:["A grey storm takes the ground out from under him","Something praying turns out to be waiting",
+     "The glass flats open a cut clean through his boot","The last of the water isn't enough, and it shows",
+     "Bootprints that end mid-stride end at him next","The wind uncovers something that should have stayed buried",
+     "A horizon with no landmark hides what's close","The caravan he digs out wasn't waiting to be found"],
+  6:["The fractured spire opens beneath his hand","A crowned thing turns before the killing blow lands",
+     "The burning book's last page ignites the air itself","The seam where the sky split closes on his arm",
+     "A siege of one is still a siege","The voice in the crown answers in a language of blades",
+     "The stair he holds gives an inch, then more","The world coming apart takes a piece of him with it"],
+};
+
+const DODGE_TAGS = [
+  "but he's already moving.", "and finds only air.", "a hair too late.",
+  "he's a step ahead of it.", "and it costs him nothing.",
+];
+
+const CHEATDEATH_LINES = [
+  "It should have ended there. Something refuses to let {name} go, and he claws back to a single breath.",
+  "{name} goes down — and comes back up. Barely. One breath, held.",
+  "The dark takes {name} and then, impossibly, lets go. He survives on a single breath.",
+];
+
+// Epilogue templates for the death screen. ctx fields arrive pre-escaped.
+const aOrAn = w => /^[aeiou]/i.test(w) ? "an" : "a";
+const cap = s => s[0].toUpperCase() + s.slice(1);
+const EPILOGUES = [
+  ctx => `${ctx.name}'s chronicle closes in ${ctx.zone}. ${ctx.killedBy}, and this time nothing answers. ${cap(aOrAn(ctx.race))} ${ctx.race} ${ctx.cls}, level ${ctx.level}, who came further than most and still not far enough.`,
+  ctx => `The road ends for ${ctx.name} in ${ctx.zone}. ${ctx.killedBy}. There was no charge left to spend, no breath held in reserve. Level ${ctx.level}, ${aOrAn(ctx.race)} ${ctx.race} ${ctx.cls} — and now a name in the Hall.`,
+  ctx => `${ctx.name} does not get up this time. ${ctx.killedBy}, in ${ctx.zone}, at level ${ctx.level} — ${aOrAn(ctx.race)} ${ctx.race} ${ctx.cls} whose story was long enough to matter and short enough to end here.`,
+  ctx => `In ${ctx.zone}, at level ${ctx.level}, the tale of ${ctx.name} the ${ctx.race} ${ctx.cls} finds its last line. ${ctx.killedBy}. The road takes everyone, eventually. It took him here.`,
+];
+
+/* --------------------------------- story ---------------------------------- */
+// Phase 6 (design doc §12). Two layers: five acts tied to level (fixed
+// structure), and a per-run thread rolled at hero creation (randomized
+// dressing). Beats fire on LEVEL THRESHOLDS inside the simulation core
+// (levelUp/createState), never from the render layer, so simulate(n) sees
+// the exact same story a real playthrough does.
+
+const ACTS = [
+  {n:1, name:"The Calling",        lo:1,  hi:9},
+  {n:2, name:"The Gathering Dark", lo:10, hi:18},
+  {n:3, name:"The Deepening",      lo:19, hi:28},
+  {n:4, name:"The Reckoning",      lo:29, hi:36},
+  {n:5, name:"The Riven Crown",    lo:37, hi:50},
+];
+function actForLevel(level){
+  for (const a of ACTS) if (level <= a.hi) return a;
+  return ACTS[ACTS.length-1];
+}
+
+// ~3 minor beats per act (design doc §12), placed on levels that never
+// collide with a class/skill choice gate (5,10,15,20,25,30,35,40,45,50) so a
+// minor beat never gets buried by — or has to compete for attention with —
+// a blocking choice screen.
+const MINOR_BEAT_LEVELS = {
+  3:1, 6:1, 8:1,
+  12:2, 14:2, 17:2,
+  21:3, 24:3, 27:3,
+  31:4, 33:4, 36:4,
+  38:5, 42:5, 48:5,
+};
+
+// Substitutes {name}/{antagonist}/{goal}/{doom}/{sign}/... into a template.
+// Unknown {tokens} are left untouched rather than erased, so a typo in a
+// template shows up as a visible bug instead of a silent blank.
+function fillTemplate(str, vars){
+  return str.replace(/\{(\w+)\}/g, (m, k) => (k in vars) ? vars[k] : m);
+}
+function threadVars(S, extra){
+  const t = (S.world && S.world.thread) || {};
+  return Object.assign({name: S.hero.name, antagonist: t.antagonist,
+                        goal: t.goal, doom: t.doom}, extra || {});
+}
+
+// Five antagonist flavors (design doc §12). Each owns its own name-parts,
+// goal/doom vocabulary, and short "sign" phrases used to season minor beats
+// — so a lich run and a dragon run read as different tales even though both
+// walk the exact same five-act skeleton.
+const ANTAGONIST_TYPES = {
+  lich: {
+    firsts: ["Vheln","Morrance","Caidra","Ashur","Sethevar","Nyra","Ondrick","Malveth","Cyrix","Isolde"],
+    epithets: ["Unmourned","Bone-Kept","Hollow King","Long-Buried","Sixth Grave","Unburied","Grey Tally","Salt-Eyed","Uncounted","Last Debt"],
+    nameFmt: (f,e) => `${f} the ${e}`,
+    goals: ["shatter the seventh seal","wake the buried choir beneath the Barrows",
+            "finish the rite his first death interrupted","gather the names of everyone who ever forgot him",
+            "open the door his own death was supposed to close","balance a ledger six centuries overdue"],
+    dooms: ["the sun will not rise again","every grave in the land will give up what it holds",
+            "the dead will simply stop staying down","no name spoken aloud will be remembered by morning",
+            "the living will owe a debt none of them agreed to","the count will finally come due"],
+    signs: ["a grave gone cold two winters early","a name struck from a headstone overnight",
+            "bells that ring themselves in the old chapel","a procession of footprints leading nowhere",
+            "a priest's ledger with the same death recorded twice","the churchyard gate found latched from the inside"],
+  },
+  tyrant: {
+    firsts: ["Draven","Corveth","Aldric","Morgrath","Sennovar","Kessa","Ildran","Voss","Tharion","Reyna"],
+    epithets: ["Iron Hand","Unyielding","First Wall","Salt Crown","Undefeated","Long Reach","Second Sword","Grey Marshal","Widowmaker","Last Word"],
+    nameFmt: (f,e) => `${f} the ${e}`,
+    goals: ["bring every free hold under one banner","finish the conquest his father started and failed",
+            "break the last free town before the frost","silence the county that still remembers the old king",
+            "complete a road built entirely of debts","crown himself somewhere the gods can't unmake it"],
+    dooms: ["there will be no crown left to kneel to","the old borders will mean nothing at all",
+            "every town will answer to one name or burn","the free holds will not survive the winter",
+            "the land will be his ledger, and everyone in it a line item","resistance will simply become a word no one remembers"],
+    signs: ["a garrison flying a banner no one recognizes","a toll road that wasn't there last season",
+            "a village emptied and re-settled with strangers","a courier who won't say who sent him",
+            "a black-iron standard planted at an unmarked border","a levy notice nailed to a door that's since been burned"],
+  },
+  dragon: {
+    firsts: ["Rhaskavor","Ynkathrax","Dremuroth","Skaal","Vornastra","Cindraeth","Gorruvax","Ashkyr","Thal-Vurn","Ossireth"],
+    epithets: ["Ashwing","World-Scorcher","Cinder Queen","Bonecrusher","Old Fire","Last Flame","Wyrm of the Reach","Sky-Splitter","Ember King","Blackened Sky"],
+    nameFmt: (f,e) => `${f} the ${e}`,
+    goals: ["burn the Reach down to the bedrock","reclaim a hoard some fool king buried",
+            "finish what the last Ember War left standing","wake the rest of its kind from the deep stone",
+            "make good on a promise made in fire three generations back","empty the sky of every roof that isn't its own"],
+    dooms: ["nothing green will grow in the Reach again","the ash will fall for a year",
+            "every hall in the lowlands will be a hearth for one fire","the sky itself will not be safe to stand under",
+            "the old war will simply happen again, worse","there will be no harvest left to bury the dead with"],
+    signs: ["livestock found scorched to bone in a locked pen","a hillside glassed smooth overnight",
+            "smoke from a chimney no one built","a well gone hot enough to boil",
+            "a flock of birds that won't fly over one particular ridge","scale-shed the size of a shield, still warm"],
+  },
+  plague: {
+    // Plagues aren't people — their "names" are what the survivors call them.
+    epithets: ["The Weeping Rot","The Long Hunger","The Yellow Silence","The Grey Fever",
+               "The Second Wasting","The Black Bloom","The Slow Drowning","The Hollow Cough",
+               "The Creeping Frost","The Quiet Sickness"],
+    nameFmt: (f,e) => e,
+    goals: ["finish crossing the six kingdoms it's already touched","find the one bloodline still immune and end it",
+            "turn the wells before the first frost","outlast every ward raised against it",
+            "reach the capital before the quarantine closes","become the thing that decides who gets remembered"],
+    dooms: ["there will be no one left to bury the last of them","the wells will not run clean again in this lifetime",
+            "a cough will be the last thing anyone says to anyone","the roads will empty faster than the graveyards fill",
+            "every ward will fail in the same order, one by one","the count of the living will simply stop being kept"],
+    signs: ["a well gone black overnight","a whole household coughing in the same rhythm",
+            "a healer who won't open her door anymore","birds falling out of a clear sky over one field",
+            "a quarantine flag flown a week too late","a child's fever that breaks and comes back worse"],
+  },
+  god: {
+    firsts: ["Iothrel","Sevaine","Anduré","Kethuun","Vasariel","Orseveth","Thammuz","Calenhir","Yzmerel","Doraeth"],
+    epithets: ["the Unwaking Eye","the Silent Verdict","Who Counts the Stars","the Forgotten Vow",
+               "Who Sleeps in Light","Who Was Always Watching","the Bound and Waiting","Who Answers No Prayer"],
+    nameFmt: (f,e) => `${f}, ${e}`,
+    goals: ["finish a judgment begun before the first king","collect what was promised at the world's making",
+            "close the gap it opened when it was cast down","remember why it was forgotten in the first place",
+            "balance a debt older than every temple built to deny it","wake fully, for the first time in an age"],
+    dooms: ["the sky will not forgive what happens next","every prayer said this year will go to the wrong ear",
+            "the world will be judged by something that isn't merciful","waking fully will not leave much of anyone standing",
+            "the old temples will finally be right about something","there will be no morning after the reckoning"],
+    signs: ["a shadow that falls the wrong direction at noon","a prayer answered by something that isn't listening",
+            "the stars sitting one degree wrong for a week","a shrine's incense that won't stay lit",
+            "every clock in a village losing the same minute","a silence in the chapel that has a shape to it"],
+  },
+};
+const ANTAGONIST_TYPE_KEYS = Object.keys(ANTAGONIST_TYPES);
+
+function rollAntagonistName(type){
+  const t = ANTAGONIST_TYPES[type];
+  const f = t.firsts ? pick(t.firsts) : null;
+  const e = pick(t.epithets);
+  return t.nameFmt(f, e);
+}
+function rollThread(){
+  const type = pick(ANTAGONIST_TYPE_KEYS);
+  const t = ANTAGONIST_TYPES[type];
+  return {antagonist: rollAntagonistName(type), antagonistType: type,
+          goal: pick(t.goals), doom: pick(t.dooms)};
+}
+
+// Act I fires at hero creation (there's no level-up to hang it on); Acts
+// II-V fire the moment levelUp() crosses that act's starting level. 3-4
+// variants each, fully written per antagonist type — these are the most-read
+// beats in the game, the chapter headers of the chronicle.
+const ACT_MAJOR = {
+  1: {
+    lich: [
+      "{name} takes the road out of town with nothing but a name half-remembered — {antagonist} — spoken by an old woman who wouldn't say more.",
+      "Before {name} has gone a mile, he hears the name {antagonist} muttered like a curse. He doesn't yet know why it makes people cross themselves.",
+      "The tale that sends {name} onto the road is an old one: {antagonist} was buried once. Somebody should check that it stayed that way.",
+    ],
+    tyrant: [
+      "{name} sets out with a rumor for company: {antagonist} is raising banners two counties over, and asking nothing but obedience.",
+      "The road takes {name} past a burned way-marker. Someone has painted {antagonist}'s sigil over the old one.",
+      "{name} leaves with his family's blessing and a warning: stay clear of anywhere flying {antagonist}'s colors.",
+    ],
+    dragon: [
+      "{name} takes the road with the taste of woodsmoke still in the air — the last village {antagonist} passed over left little else.",
+      "Nobody has seen {antagonist} in a generation. {name} sets out anyway, because the last time it slept this long, it wasn't sleeping.",
+      "{name} walks out under a sky that's been the wrong color for a week, ever since {antagonist} was seen crossing the ridge.",
+    ],
+    plague: [
+      "{name} leaves town a day ahead of the quarantine flags. {antagonist} moves slower than a rumor, but it never once stops.",
+      "The healer who sends {name} off doesn't call it sickness. She calls it {antagonist}, like it has a mind about where it goes next.",
+      "{name} sets out with a strip of cloth over his face and a warning that {antagonist} has already reached the next valley over.",
+    ],
+    god: [
+      "{name} takes the road because the shrine elders won't say why the incense keeps going out. They only say the word {antagonist}, and look away.",
+      "{name} sets out under stars that a blind hedge-priest swears have moved. He blames {antagonist}, and nobody laughs at him for it.",
+      "The old prayers have started coming back wrong, is all anyone will tell {name} before he leaves. Something is answering that isn't supposed to be listening — {antagonist}, they call it, when they call it anything.",
+    ],
+  },
+  2: {
+    lich: [
+      "In the Thornwood, {name} finds a chapel where every grave has been opened from beneath. {antagonist} is not a rumor anymore.",
+      "{name} counts eleven headstones with the names scratched out. The eleventh belonged to someone he'd met. {antagonist}'s work, the locals say, and mean it.",
+      "The dead here don't stay where they're put. {name} has seen the drag-marks himself now. {antagonist} is real, and close.",
+    ],
+    tyrant: [
+      "{name} passes a village paying tribute to soldiers who don't answer to any king he's heard of. {antagonist}'s banner flies over the granary.",
+      "The Thornwood road is patrolled now, by men who took an oath {name} doesn't recognize. {antagonist}'s reach is longer than the stories said.",
+      "{name} meets a family walking the other way, carrying everything they own. {antagonist}'s levies took the rest.",
+    ],
+    dragon: [
+      "{name} crosses a stretch of the Thornwood burned so evenly it couldn't have been an accident. {antagonist} did this in a single pass.",
+      "A herd of deer lies dead in a clearing, not a mark on them but scorched grass beneath. {antagonist} flew low here, and recently.",
+      "{name} finds a hunting lodge reduced to its stone foundation. The owner survived by being elsewhere. {antagonist} was not subtle about it.",
+    ],
+    plague: [
+      "{name} reaches a Thornwood hamlet with its well roped off and its doors marked in chalk. {antagonist} arrived here three days ago.",
+      "The dead in this stretch of wood aren't buried deep enough, and {name} understands why when he sees how many there are. {antagonist} moves faster than anyone's grief.",
+      "{name} meets a woman burying her whole family alone. She doesn't have a name for what took them. {antagonist}, {name} thinks, and doesn't say it aloud.",
+    ],
+    god: [
+      "{name} finds a shrine in the Thornwood with its statue's face worn perfectly smooth — not by weather, by something looking at it. {antagonist} has been here.",
+      "The Thornwood's oldest chapel has gone silent; no bird will nest in its eaves anymore. {antagonist}'s attention rests somewhere nearby.",
+      "{name} meets a hedge-priest who hasn't slept in a week, keeping watch on a sky that {antagonist} keeps almost-answering.",
+    ],
+  },
+  3: {
+    lich: [
+      "In the drowned dark beneath the Barrows, {name} reads what's left of a warning carved by someone who didn't survive writing it: {antagonist} means to {goal}, and there is a date.",
+      "{name} finds an entire order of dead priests, still kneeling. Whatever they were trying to stop, {antagonist} finished starting it — the goal was always to {goal}.",
+      "{name} understands now, standing in the flooded nave: this was never one grave. {antagonist} has been building toward this for centuries. He means to {goal}.",
+    ],
+    tyrant: [
+      "{name} finds a war room abandoned in the Barrows' upper halls — maps of every free hold in the region, all pointing toward one campaign. {antagonist} means to {goal}.",
+      "The scale of it reaches {name} all at once: this isn't a border dispute. {antagonist} means to {goal}, and has been for years.",
+      "{name} reads requisition orders stacked floor to ceiling. {antagonist}'s war was never local. The goal, plainly written: {goal}.",
+    ],
+    dragon: [
+      "{name} finds bones in the Barrows' lower vault older than the kingdom itself — the last time something like {antagonist} walked, and what it took to put it down. It means to {goal} this time.",
+      "The scorched stone beneath the Barrows tells {name} this has happened before. {antagonist} means to {goal}, same as the last one did.",
+      "{name} understands, reading the old wardstones, that {antagonist} isn't hunting at random. The goal was always to {goal}.",
+    ],
+    plague: [
+      "{name} finds the Barrows' entire lower level converted to a mass grave, organized, dated, deliberate. {antagonist} means to {goal}.",
+      "The scale of the dead here tells {name} this was never contained. {antagonist} means to {goal}, and the Barrows were only ever a way station.",
+      "{name} reads a physician's last notes, abandoned mid-sentence. {antagonist} means to {goal} — that much the notes are certain of.",
+    ],
+    god: [
+      "{name} finds a Barrow shrine older than any record, and a warning scratched beneath the altar in a hand shaking with fear: {antagonist} means to {goal}.",
+      "The scale of it settles on {name} all at once, standing in the flooded dark: this was never a haunting. {antagonist} means to {goal}.",
+      "{name} reads the last testament of a priesthood that stopped existing generations ago. {antagonist}'s aim was always to {goal}.",
+    ],
+  },
+  4: {
+    lich: [
+      "Emberfall costs {name} something he can't get back — an ally who stood between him and {antagonist}'s reaching hand, and didn't stand up again.",
+      "{name} pays for ground in the Reach with someone else's life. {antagonist} doesn't take prisoners, only debts.",
+      "The Reach takes something from {name} that gold can't replace. He keeps walking anyway, because {doom} if he doesn't.",
+    ],
+    tyrant: [
+      "{name} watches Emberfall's last free garrison fall to {antagonist}'s column. Something is lost there that won't be retaken.",
+      "The cost of the Reach is a name {name} won't say again — someone who bought him time against {antagonist} with everything he had.",
+      "{name} loses a friend to a war he didn't start. {antagonist}'s ledger has one more line, and it isn't {antagonist}'s.",
+    ],
+    dragon: [
+      "Emberfall's fire takes something from {name} that healing can't touch — a companion who didn't clear the ash in time.",
+      "{name} pays for the Reach in a way he didn't expect: not his own blood, but someone else's, standing where he should have.",
+      "The cost of crossing Emberfall arrives before {name} is ready for it. {antagonist} doesn't ask what it's worth taking.",
+    ],
+    plague: [
+      "{name} loses someone in Emberfall who was fine a week ago. {antagonist} doesn't announce itself before it collects.",
+      "The Reach exacts its cost quietly — {name} realizes too late that the cough he'd stopped noticing was the last warning he'd get.",
+      "{name} pays for passage through Emberfall with a name he'll carry the rest of the road. {antagonist} took it without slowing down.",
+    ],
+    god: [
+      "Something is asked of {name} in Emberfall, and something is taken whether he agrees or not — {antagonist}'s attention has a cost, and it's already been spent.",
+      "{name} loses someone to a bargain he never got to make. {antagonist} doesn't negotiate; it simply decides.",
+      "The Reach takes its due from {name} in silence. Whatever {antagonist} wanted, it already has it.",
+    ],
+  },
+  5: {
+    lich: [
+      "The Ashen Wastes lie between {name} and {antagonist} now, and nothing else. Every step is toward the last door.",
+      "{name} can feel {antagonist} the way you feel weather coming — a pressure in the ground, getting closer with every mile of ash.",
+      "There is no more road after this stretch, only the place where {antagonist} is waiting, and {doom} if {name} arrives too late.",
+    ],
+    tyrant: [
+      "{name} crosses into the Wastes knowing there's only one banner left standing at the end of them — his, or {antagonist}'s.",
+      "The march to {antagonist} has stopped being a road and started being a countdown. {name} can feel it.",
+      "{name} knows now there's no ground left to give. Past the Wastes is {antagonist}, and past {antagonist} is however this ends.",
+    ],
+    dragon: [
+      "The Wastes are the last country between {name} and {antagonist}'s roost. The ash here never stops falling.",
+      "{name} can see the mountain where {antagonist} waits from three days out. It never gets any smaller.",
+      "There's a smell in the Wastes that gets stronger with every mile — old fire, and something that's been burning a long time. {antagonist} is close now.",
+    ],
+    plague: [
+      "The Wastes are already dying when {name} crosses them — {antagonist} got here first, same as it gets everywhere first.",
+      "{name} walks toward the one place {antagonist} hasn't finished with yet. It won't stay that way much longer.",
+      "There's nothing left to lose between here and {antagonist} — {name} understands that now, crossing ground already spent.",
+    ],
+    god: [
+      "The Wastes go quiet in a way that isn't peace. {name} is walking toward something that's been waiting far longer than he's been alive.",
+      "{name} can feel {antagonist}'s attention now, even at this distance — patient, total, unhurried. It has always known he was coming.",
+      "There is no more road after the Wastes, only the place where {antagonist} has been waiting since before there was a name for waiting.",
+    ],
+  },
+};
+
+// Minor beats: generic per act (not per antagonist type) but seasoned with
+// {sign} — a short type-flavored phrase — so the type still comes through
+// without needing 5x the prose for beats that are, by design, throwaway.
+const ACT_MINOR = {
+  1: [
+    "Word reaches {name} on the road: {sign}. He files it away and keeps walking.",
+    "{name} hears travelers talking in low voices about {sign}. Nobody wants to say the name {antagonist} out loud yet.",
+    "A peddler tells {name} about {sign}, then changes the subject fast.",
+    "{name} sees it for himself before the day is out: {sign}.",
+  ],
+  2: [
+    "Deeper into the Thornwood, {name} finds {sign}. The pattern is starting to look less like coincidence.",
+    "{name} hears it from a woodcutter who won't meet his eyes: {sign}.",
+    "The March keeps its secrets poorly. {name} comes across {sign} without even looking for it.",
+    "{name} adds it to the list without meaning to: {sign}. The list is getting long.",
+  ],
+  3: [
+    "In the Barrows' flooded dark, {name} finds {sign}. Whatever did this didn't hide it — didn't need to.",
+    "{name} reads it in stone, in water-stained parchment, in the shape of the dead themselves: {sign}.",
+    "The deeper {name} goes, the less anyone bothers to whisper about it. {sign}, and nobody blinks anymore.",
+    "{name} stops being surprised somewhere around {sign}. He keeps count anyway.",
+  ],
+  4: [
+    "Emberfall gives up its secrets grudgingly, but {name} finds {sign} regardless.",
+    "{name} passes a place that used to be something else, before {sign}.",
+    "The Reach doesn't explain itself. {name} simply arrives to find {sign}, and moves on before it can happen to him too.",
+    "{name} starts to recognize the pattern before he even sees it: {sign}, same as always.",
+  ],
+  5: [
+    "The Wastes offer {name} one more sign before the end of the road: {sign}.",
+    "{name} barely registers it anymore — {sign} — this close to the end.",
+    "Even here, at the edge of everything, {name} finds {sign}. Some things don't stop until the source does.",
+    "{name} reads {sign} like a countdown. There aren't many numbers left.",
+  ],
+};
+
+/* ----------------------------- the confrontation --------------------------- */
+// Ascension (design doc §10): level 50 + an Epic-or-better relic unlocks a
+// scripted ~10-step climax against the antagonist. Written as a sequence,
+// not ordinary task lines — this is the payoff the entire chronicle points
+// at, so each type gets its own ten beats rather than a shared template.
+const CONFRONTATION_STEPS = 10;
+
+const CONFRONTATION_ANNOUNCE = [
+  "{name} has done what almost no one does: found the strength, and found the means. There is nothing left between him and {antagonist} now.",
+  "The road runs out. What's left is {antagonist}, and whatever is about to happen between them.",
+  "{name} is as ready as the road can make a man. {antagonist} is waiting, and {doom} if he isn't ready enough.",
+];
+
+const CONFRONTATION_SEQUENCE = {
+  lich: [
+    "{name} passes through the last seal into {antagonist}'s sanctum. The air itself seems to hold its breath.",
+    "Bones stir in the walls as {name} advances — not attacking yet, only watching.",
+    "{antagonist}'s voice arrives before {antagonist} does, dry as old paper, naming {name} by a name he hasn't used since childhood.",
+    "The dead of the sanctum rise to bar the way. {name} puts them down again, one debt at a time.",
+    "{antagonist} shows {name} exactly what it costs to {goal} — and shows him he intends to pay it anyway.",
+    "{name} loses ground, then finds it again in the dark between two heartbeats.",
+    "{antagonist}'s hand closes on something that isn't quite {name}'s soul, and doesn't quite let go.",
+    "The sanctum floor opens on centuries of the unburied dead, all of them {antagonist}'s, all of them reaching.",
+    "{name} finds the one true thing in the room: {antagonist} is afraid of this ending too.",
+    "Everything {antagonist} has built toward comes down to a single exchange, and {name} is the one left standing to make it.",
+  ],
+  tyrant: [
+    "{name} breaks through the last checkpoint into {antagonist}'s own hall, past men who stopped believing in the cause an hour ago.",
+    "{antagonist}'s personal guard meets {name} at the threshold — the best soldiers the old wars ever produced, and it isn't enough.",
+    "{antagonist} doesn't rise from the seat at first. Watches {name} cross the hall like a man reviewing a report.",
+    "The hall's braziers gutter as the fight spills past the throne itself. {name} gives no ground he doesn't have to.",
+    "{antagonist} fights the way he ruled — without waste, without mercy, and without any plan for losing.",
+    "{name} takes a wound that would have ended the fight an hour ago. It doesn't end this one.",
+    "{antagonist} names the cost of failure out loud, the way he's named every execution order for years — like arithmetic.",
+    "The banners of a dozen conquered holds burn around them as the hall itself starts coming apart.",
+    "{name} sees it, finally — {antagonist} never planned for an opponent who wouldn't stop.",
+    "One exchange decides it. {antagonist}'s ledger runs out of room for one more entry.",
+  ],
+  dragon: [
+    "{name} climbs the last approach to {antagonist}'s roost, air shimmering with heat that hasn't cooled in years.",
+    "{antagonist} doesn't wait to be found. The mountain itself seems to exhale fire as it rises to meet him.",
+    "The first pass takes half the ledge with it. {name} is still standing on what's left.",
+    "{antagonist} circles, patient as old stone, testing {name} the way it's tested every hunter before him.",
+    "{name} finds the gap in the scale the old stories promised was there. It's smaller than promised.",
+    "The roost comes apart around them, ash and old gold raining down together.",
+    "{antagonist} lands the blow it's been saving, and {name} is still moving when the dust settles.",
+    "For one long moment neither of them gives an inch. The mountain doesn't care who wins.",
+    "{name} sees, past all that fire, something almost like fear. {antagonist} is old, not invincible.",
+    "The last exchange happens close enough to touch — closer than anyone sane would choose.",
+  ],
+  plague: [
+    "{name} passes the last quarantine line into ground {antagonist} has already claimed for its own.",
+    "There's no enemy to see at first — only the wrongness in the air, the way {antagonist} announces itself before it arrives.",
+    "{antagonist} takes shape the way sickness always does: gradually, and then all at once.",
+    "{name} fights something that doesn't tire, doesn't bleed, and doesn't especially care how long this takes.",
+    "The ground here has already given up its dead once. {antagonist} isn't finished with them yet.",
+    "{name} feels it working at the edges of him, patient the way only a plague can be patient.",
+    "{antagonist} shows him exactly what {doom} looks like up close, in case he needed convincing.",
+    "There's a moment where {name} isn't sure he's still winning. There's a moment right after where he is.",
+    "{antagonist} doesn't retreat — it simply runs out of ground to take.",
+    "The last of it comes down to whether {name} outlasts something that was built to outlast everyone.",
+  ],
+  god: [
+    "{name} crosses into ground that doesn't behave the way ground should anymore — {antagonist}'s presence, this close, bends the rules.",
+    "{antagonist} doesn't announce itself. It simply is, all at once, the way weather is.",
+    "{name} understands, fighting it, that this was never going to be a fair exchange.",
+    "{antagonist} answers every blow with something almost like curiosity, like it's still deciding whether {name} matters.",
+    "The world tilts around them. {name} keeps his footing by refusing to notice it's happening.",
+    "{antagonist} shows {name} the shape of {doom}, briefly, the way you'd show a child something to make them behave.",
+    "{name} finds the one thing {antagonist} didn't plan for: he isn't afraid of it, not anymore.",
+    "The space between them stops being distance and starts being an argument.",
+    "{antagonist} makes its case for why this should already be over. {name} makes his case by still being there.",
+    "The last exchange isn't strength against strength. It's whether {name} is still standing when it's finished deciding.",
+  ],
+};
+
+// Elevated-peril flavor lines specific to the confrontation (referencing the
+// antagonist by name), rolled the same way rollPeril() rolls from PERILS.
+const CONFRONTATION_PERILS = {
+  lich: ["{antagonist}'s grip closes cold around his throat","The sanctum's dead close in from every side at once",
+         "A blade of pure cold passes clean through where he stood","{antagonist} unmakes the ground beneath his feet",
+         "The seventh seal answers with something that shouldn't have a name"],
+  tyrant: ["{antagonist}'s blade finds the gap his armor doesn't cover","The guard captain nearly ends it before {antagonist} even moves",
+           "A volley meant for the hall catches him instead","{antagonist} presses an advantage {name} didn't know he'd given",
+           "The throne room itself seems to close in around him"],
+  dragon: ["{antagonist}'s claw rakes clean through his guard","A gout of flame catches the edge of everything he's carrying",
+           "The roost floor gives way beneath both of them at once","{antagonist}'s tail sweeps the ledge out from under him",
+           "Heat alone nearly finishes what the claws didn't"],
+  plague: ["Something in the air finds a way past every ward he has","{antagonist} finds the one crack in his resolve",
+           "A cough that isn't his own catches in his own chest","The sickness moves faster than he can account for",
+           "{antagonist} shows him exactly how this could end, briefly, from the inside"],
+  god: ["{antagonist} answers a blow with something that isn't physical at all","The world itself seems to lean against him for one long moment",
+        "A silence with weight to it nearly stops his heart outright","{antagonist} makes an argument his body almost believes",
+        "Something ancient and patient nearly wins on patience alone"],
+};
+
+// Fired the instant the tenth step resolves without a death.
+const ASCENSION_LINES = {
+  lich: ["The seventh seal does not shatter. {antagonist}'s long unmaking finishes here instead — undone by {name}, of all people.",
+         "{antagonist}'s grip finally opens. What's left of him doesn't rise again."],
+  tyrant: ["{antagonist}'s banner comes down for the last time. There is no one left to raise it.",
+           "The conquest ends where it started — with one man refusing to fall."],
+  dragon: ["{antagonist} falls from a height it never expected to fall from. The Reach goes quiet for the first time in years.",
+           "The fire finally goes out. {name} is still standing in the ash."],
+  plague: ["Whatever {antagonist} was, it stops spreading. {name} is the reason it stops.",
+           "The wells will run clean again. {antagonist}'s count of the dead doesn't get one more name."],
+  god: ["{antagonist} finally answers for something. {name} is the one it answers to.",
+        "The judgment {antagonist} came to deliver gets delivered instead — to it."],
+};
+
+// The ascension epilogue screen (mirrors EPILOGUES for death). Generic across
+// types since ctx.antagonist/goal/doom already carry the flavor. ctx fields
+// arrive pre-escaped, same convention as EPILOGUES.
+const ASCENSION_EPILOGUES = [
+  ctx => `${ctx.name}'s chronicle does not end in a grave. ${ctx.antagonist} will never ${ctx.goal} — not now, not ever. Level ${ctx.level}, ${aOrAn(ctx.race)} ${ctx.race} ${ctx.cls}, and the rarest kind of ending: one he walked away from.`,
+  ctx => `The road ends for ${ctx.name} the way almost no road does: standing. ${ctx.antagonist} is finished, and so is everything it promised. Level ${ctx.level}, ${aOrAn(ctx.race)} ${ctx.race} ${ctx.cls} — a name for the Hall that isn't followed by a date.`,
+  ctx => `${ctx.name} does the one thing almost no one manages: he finishes the story instead of becoming a casualty in it. ${ctx.antagonist} will not ${ctx.goal}. Level ${ctx.level}, ${aOrAn(ctx.race)} ${ctx.race} ${ctx.cls}, and the chronicle closes on a hero still breathing.`,
+  ctx => `It comes down to one exchange, in the end, and ${ctx.name} is the one left standing. ${cap(ctx.doom)} was the threat, once. Now it is a story with an ending nobody has to dread. Level ${ctx.level}, ${aOrAn(ctx.race)} ${ctx.race} ${ctx.cls}, ascended.`,
+];
+
+function xpToNext(level){
+  return Math.round(110 * BALANCE.xpCurveMult * Math.pow(level, 1.5));
+}
+function zoneForLevel(level){
+  for (const z of ZONES) if (level <= z.max) return z;
+  return ZONES[ZONES.length-1];
+}
+
+/* ---------------------------------- gear ---------------------------------- */
+// Quality tiers — weights, score multipliers and colors are design-doc §9
+// exactly as written (weights sum to 1.0). `color` is mirrored as a CSS
+// variable (--tier-*) for the gear tab; keep the two in sync.
+const TIERS = {
+  common:    {name:"Common",    weight:.55,  mult:1.0, color:"#9ca3af"},
+  uncommon:  {name:"Uncommon",  weight:.27,  mult:1.35, color:"#4ade80"},
+  rare:      {name:"Rare",      weight:.13,  mult:1.8, color:"#60a5fa"},
+  epic:      {name:"Epic",      weight:.042, mult:2.4, color:"#c084fc"},
+  legendary: {name:"Legendary", weight:.008, mult:3.2, color:"#fbbf24"},
+};
+
+const SLOT_KEYS = ["weapon","armor","helm","gloves","boots","relic"];
+
+// Which stats a slot favors when rolling its 1-3 bonuses. Relics can roll
+// anything and are the only slot that can grant a cheat-death charge.
+const SLOT_FAVORED = {
+  weapon: ["str","dex","int"], armor: ["con"], helm: ["con"],
+  gloves: ["dex"], boots: ["con"], relic: STAT_KEYS.slice(),
+};
+
+// [prefix] [base] [suffix] word banks per tier/slot. Kept deep enough that a
+// single run (a few hundred drops) won't visibly repeat a full name.
+const PREFIX_BY_TIER = {
+  common:    ["Worn","Plain","Dull","Battered","Rough","Notched","Tarnished","Scuffed"],
+  uncommon:  ["Honed","Sturdy","Tempered","Marked","Steady","Grim","Iron-banded","Sharpened"],
+  rare:      ["Ashen","Silvered","Black-iron","Storm-touched","Bloodforged","Warded","Gravebound","Runed"],
+  epic:      ["Dread","Ember-wrought","Wyrmscale","Hallowed","Cinderforged","Nightforged","Sanguine","Thornbound"],
+  legendary: ["Sundering","World-Ending","Ashborn","Godsbane","Deathless","Crownbreaker","Sky-Rending","Doomforged"],
+};
+const BASE_BY_SLOT = {
+  weapon: ["Warblade","Falchion","Cleaver","Saber","Broadsword","Hatchet","Spear","Warpick","Longsword","Dirk"],
+  armor:  ["Cuirass","Hauberk","Breastplate","Mail","Coat","Plackart","Byrnie","Vestment"],
+  helm:   ["Sallet","Circlet","Warhelm","Coif","Visor","Barbute","Casque","Crown-piece"],
+  gloves: ["Gauntlets","Vambraces","Grips","Handwraps","Bracers","Fists","Gloves","Manicles"],
+  boots:  ["Greaves","Treads","Sabatons","Striders","Warboots","Footguards","Wraps","Anklets"],
+  relic:  ["Sigil","Shard","Talisman","Idol","Reliquary","Effigy","Charm","Icon"],
+};
+const SUFFIX_BY_TIER = {
+  common:    ["the Road","the Ford","Ash","the Watch","Mud","the Warren"],
+  uncommon:  ["the Vigil","the March","the Deep","Embers","the Wolf","the Wake"],
+  rare:      ["the Drowned","the Barrow","the Black Cistern","Old Names","the Cinder Stair","the Wight"],
+  epic:      ["the Unmourned","the Riven Sky","the Last Page","the Crowned Thing","the Siege","the Ashfall"],
+  legendary: ["the Sundered Gate","the World's End","the Unmaking","the Last Seal","the Doom That Waits","the Riven Crown"],
+};
+
+/* ------------------------------- randomness ------------------------------ */
+// Swappable so the harness can run seeded and reproducible.
+let rng = Math.random;
+function mulberry32(a){
+  return function(){
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    let t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+const pick = arr => arr[Math.floor(rng() * arr.length)];
+const randInt = (lo, hi) => lo + Math.floor(rng() * (hi - lo + 1));
+function shuffle(arr){
+  for (let i = arr.length - 1; i > 0; i--){
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+/* --------------------------- meta-progression ----------------------------- */
+// Phase 7 (design doc §11). Achievements are LIFETIME — they live in
+// goquest_meta, never wiped with a hero, and rewards are unlocking rather
+// than numeric (the doc's explicit warning: hero #40 must not be meaningfully
+// stronger than hero #2, or daily variance flattens). The three numeric perks
+// below (start gold, drop chance, inventory slot) are the deliberate
+// exceptions called out in the brief — nothing else should add more.
+//
+// META isn't threaded through the simulation core as a parameter (advance/
+// levelUp/etc. only take S), so achievement bookkeeping instead reads/writes
+// through S._meta — a reference attached with attachMeta(), NOT persisted
+// with the hero save (non-enumerable, so JSON.stringify(S) skips it). It is
+// null whenever there's no real player meta to write to, which includes
+// EVERY simulate(n) run (simulateOne() always calls createState(..., null)) —
+// so unlockAchievement() must no-op cleanly on a null meta, and does. None of
+// the functions below call rng()/pick() unless meta is truthy, so a null meta
+// (the harness) consumes zero extra randomness and the seeded stream — and
+// therefore the tuned balance numbers — are unaffected.
+const ACHIEVEMENTS = {
+  actII: {
+    name: "Into the Gathering Dark",
+    desc: "Reach Act II — the antagonist's work is first witnessed.",
+    reward: "Unlocks the Halfling as a playable race.",
+    apply: meta => { meta.unlocks.halfling = true; },
+  },
+  actIII: {
+    name: "The Deepening",
+    desc: "Reach Act III — learn the true scale of the threat.",
+    reward: "Unlocks the Orc as a playable race.",
+    apply: meta => { meta.unlocks.orc = true; },
+  },
+  level40: {
+    name: "Hardened",
+    desc: "Reach level 40 with any hero.",
+    reward: "Unlocks the Tiefling as a playable race.",
+    apply: meta => { meta.unlocks.tiefling = true; },
+  },
+  allZoneDeaths: {
+    name: "Six Graves",
+    desc: "Have a hero die in each of the six zones, across all your heroes.",
+    reward: "Unlocks the Ancient name pool at hero creation.",
+    apply: meta => { meta.unlocks.ancientNames = true; },
+  },
+  fullRareSet: {
+    name: "Well Appointed",
+    desc: "Equip Rare-or-better gear in all six slots at once.",
+    reward: "New heroes start with 100 gold.",
+    apply: meta => { meta.unlocks.startGold = 100; },
+  },
+  legendaryFound: {
+    name: "Something Rarer",
+    desc: "Find a Legendary item.",
+    reward: "+2% gear drop chance, permanently, for every future hero.",
+    apply: meta => { meta.unlocks.dropBonus = (meta.unlocks.dropBonus || 0) + 0.02; },
+  },
+  allAdvancedClasses: {
+    name: "Every Path Walked",
+    desc: "Reach all 12 advanced classes, across all your heroes.",
+    reward: "Unlocks the Titles name pool at hero creation.",
+    apply: meta => { meta.unlocks.titleNames = true; },
+  },
+  ascendOnce: {
+    name: "Ascendant",
+    desc: "Survive the final confrontation and ascend.",
+    reward: "New heroes start equipped with an Uncommon relic.",
+    apply: meta => { meta.unlocks.startRelic = "uncommon"; },
+  },
+  ascendThrice: {
+    name: "Thrice Proven",
+    desc: "Ascend three times.",
+    reward: "Unlocks Zone 7 (in development).",
+    apply: meta => { meta.unlocks.zone7 = true; },
+  },
+  tenHeroesRest: {
+    name: "A Long List of Names",
+    desc: "Lay 10 heroes to rest.",
+    reward: "+1 inventory slot, permanently.",
+    apply: meta => { meta.unlocks.invSlotBonus = (meta.unlocks.invSlotBonus || 0) + 1; },
+  },
+};
+const ACHIEVEMENT_KEYS = Object.keys(ACHIEVEMENTS);
+
+// Populated by unlockAchievement(), drained the next time a render surfaces
+// it (renderMain/renderCreation). Purely a UI convenience, never persisted.
+let justUnlocked = [];
+
+function unlockAchievement(meta, key, S){
+  if (!meta) return;                      // no real player context — simulate(n), always
+  meta.achievements = meta.achievements || [];
+  if (meta.achievements.includes(key)) return;
+  const a = ACHIEVEMENTS[key];
+  if (!a) return;
+  meta.achievements.push(key);
+  meta.unlocks = meta.unlocks || {};
+  a.apply(meta);
+  justUnlocked.push(key);
+  if (S) logEvent(S, "achievement", `Achievement unlocked — ${a.name}. ${a.reward}`, 2);
+  saveMeta();
+}
+
+// Attaches a live meta reference to a hero state, non-enumerably so
+// JSON.stringify(S) (saveGame) never serializes it into goquest_hero — the
+// two saves stay deliberately separate (CLAUDE.md "Save"). Re-attached on
+// every load, since JSON.parse can't round-trip a property descriptor.
+function attachMeta(s, meta){
+  Object.defineProperty(s, "_meta", {value: meta || null, writable: true, configurable: true, enumerable: false});
+  return s;
+}
+
+// Die-in-each-zone bookkeeping, called at the moment DEAD is set (both the
+// ordinary rollPeril() death and the rollConfrontationPeril() death — the
+// confrontation only ever happens in zone 6, but routing both through one
+// function keeps the bookkeeping in one place).
+function onHeroDeath(S){
+  const meta = S._meta;
+  if (!meta) return;
+  meta.deathZones = meta.deathZones || [];
+  const zn = S.world.zone;
+  if (!meta.deathZones.includes(zn)) meta.deathZones.push(zn);
+  if (meta.deathZones.length >= 6) unlockAchievement(meta, "allZoneDeaths", S);
+}
+
+// Full-rare-set bookkeeping, called at the end of equipItem() so every path
+// that can complete the set (task drop, merchant buy, starting relic) is covered.
+function checkFullRareSet(S){
+  const meta = S._meta;
+  if (!meta) return;
+  for (const slot of SLOT_KEYS){
+    const it = S.gear[slot];
+    if (!it || (it.tier !== "rare" && it.tier !== "epic" && it.tier !== "legendary")) return;
+  }
+  unlockAchievement(meta, "fullRareSet", S);
+}
+
+// Effective inventory capacity — base + the tenHeroesRest achievement's
+// permanent bonus, baked into the hero at creation (see createState).
+function invSlots(S){ return INVENTORY_SLOTS + (S.hero.metaInvBonus || 0); }
+
+// Cap on goquest_meta's hall so localStorage can't grow without bound over a
+// player's lifetime of heroes.
+const HALL_MAX = 100;
+function trimHall(meta){
+  if (meta.hall.length > HALL_MAX) meta.hall = meta.hall.slice(-HALL_MAX);
+}
+
+// Name generation. Base pool is always available; Ancient and Titles are
+// achievement-gated (see ACHIEVEMENTS above) and feed into the same roll
+// rather than replacing it, so an unlocked pool WIDENS the draw instead of
+// being a separate mode to pick.
+const NAME_FIRST = [
+  "Corin","Wren","Halsin","Ada","Merrick","Sable","Torvin","Isolde","Bram","Nessa",
+  "Dorn","Ysolde","Kade","Rhian","Osgar","Talia","Brant","Maren","Coel","Ysbel",
+  "Garrick","Sela","Wulfric","Aine","Dresden","Petra","Aldous","Nyla","Barrow","Edda",
+];
+const NAME_ANCIENT = [
+  "Wystan","Erendil","Yorick","Osric","Brannor","Tamsin","Uwaine","Godfrey",
+  "Aelric","Maud","Cadmus","Ealdred","Sigrun","Baldric","Wyndham","Aethel",
+];
+const NAME_TITLES = [
+  "the Unbroken","Stonefast","the Wanderer","Ashwalker","the Grey","Ironhand",
+  "the Quiet","Longstride","the Steady","Cinderborn","the Watchful","Roadworn",
+  "the Last","Emberkin","the Patient","Graveward",
+];
+function rollHeroName(meta){
+  const pool = NAME_FIRST.slice();
+  if (meta && meta.unlocks && meta.unlocks.ancientNames) pool.push(...NAME_ANCIENT);
+  let name = pick(pool);
+  if (meta && meta.unlocks && meta.unlocks.titleNames && rng() < 0.5) name += " " + pick(NAME_TITLES);
+  return name;
+}
+
+/* ------------------------------ state factory ---------------------------- */
+
+function createState(name, raceKey, meta){
+  const race = RACES[raceKey];
+  const stats = {};
+  for (const k of STAT_KEYS) stats[k] = 8 + (race.mods[k] || 0);
+  const statFrac = {}; for (const k of STAT_KEYS) statFrac[k] = 0;
+
+  const S = {
+    version: SAVE_VERSION,
+    hero: {
+      name, race: raceKey, cls: "novice", classPath: ["novice"],
+      level: 1, xp: 0, hp: 0, stats, statFrac,
+      gold: (meta && meta.unlocks && meta.unlocks.startGold) || 0,
+      skills: [], cheatDeathCharges: race.bonusCheatDeath || 0,
+      skillCheatDeathQueue: [], skillState: {},
+      // Phase 7 — meta-progression unlocks baked in ONCE at creation (not
+      // read continuously from META during play, which isn't threaded
+      // through the simulation core). See ACHIEVEMENTS' apply() functions.
+      metaDropBonus: (meta && meta.unlocks && meta.unlocks.dropBonus) || 0,
+      metaInvBonus: (meta && meta.unlocks && meta.unlocks.invSlotBonus) || 0,
+    },
+    world: {
+      zone: 1, state: "QUESTING", taskProgressMs: 0, taskName: "",
+      travelMsLeft: 0, travelKind: null,   // 'zone' | 'merchant_out' | 'merchant_return'
+      act: 1, thread: null,
+      pendingChoice: null,   // {kind:'class', options:[...]}
+      bankedMs: 0,           // unspent offline time held across a blocking choice
+      clock: Date.now(),     // SIMULATED time — what the chronicle is stamped with
+      killedBy: null,        // peril incident text that ended the run, for the death screen
+      epilogueIdx: null,     // which EPILOGUES template, chosen once at death so it's stable on reload
+      // Phase 6 — story/ascension.
+      confrontation: null,        // {step} while state === "CONFRONTATION"
+      diedInConfrontation: false, // distinguishes a confrontation death from an ordinary zone6 death
+      ascendedAt: null,           // simulated clock time of ascension, for the epilogue's "time lived"
+      ascensionEpilogueIdx: null, // which ASCENSION_EPILOGUES template, stable on reload
+    },
+    gear: {weapon:null, armor:null, helm:null, gloves:null, boots:null, relic:null},
+    inventory: [],
+    log: [],
+    // birthTime is stamped from the SIMULATED clock, because deathTime is too.
+    // Subtracting a simulated timestamp from a wall-clock one produced a
+    // negative lifespan on the death screen.
+    stats: {tasksCompleted:0, birthTime:null, deathTime:null,
+            goldEarned:0, itemsFound:0, perilsSurvived:0, merchantTrips:0},
+    lastTick: Date.now(),
+  };
+  attachMeta(S, meta || null);
+  // Ascend-once reward: a starting relic, equipped BEFORE hp is computed so
+  // its stat bonuses (esp. CON) count toward the hero's opening maxHP. Only
+  // runs when a real meta grants it — never during simulate(n) (meta null).
+  if (meta && meta.unlocks && meta.unlocks.startRelic){
+    const relic = generateItem(1, "relic", false, 0, meta.unlocks.startRelic);
+    equipItem(S, relic);
+  }
+  S.stats.birthTime = S.world.clock;
+  S.hero.hp = derived(S.hero, S.gear).maxHP;
+  S.world.taskName = pick(TASKS[1]);
+  // Roll the per-run story thread (design doc §12) and open the chronicle.
+  // Done here, inside the pure state factory, so simulate(n) gets the exact
+  // same opening beat a real playthrough would — not something bolted on in
+  // the render layer.
+  S.world.thread = rollThread();
+  logEvent(S, "birth", `${S.hero.name} takes up the road.`, 2);
+  if (S.gear.relic) logEvent(S, "gear", `${S.hero.name} sets out already carrying ${itemPhrase(S.gear.relic)}.`, 1);
+  logEvent(S, "story", fillTemplate(pick(ACT_MAJOR[1][S.world.thread.antagonistType]), threadVars(S)), 2);
+  return S;
+}
+
+/* -------------------------- derived stats (one place) -------------------- */
+// Gear (and, later, skill) bonuses are folded in HERE so every consumer
+// inherits them automatically. Nothing downstream should read hero.stats
+// directly — always go through derived()/effStats().
+
+// Aggregates every non-event skill effect a hero currently owns (signature
+// passives included — they're stored in hero.skills exactly like picks) into
+// one small object. "triggered" and "cheatdeath" are event-driven, not
+// aggregated stats, so they're handled at the point they fire instead (see
+// checkTriggers() and the cheat-death branch in rollPeril()).
+function skillAgg(hero){
+  const agg = {stat:{}, xpMult:1, goldMult:1, taskSpeedMult:1, mitigation:0,
+               evasion:0, sellMult:1, buyMult:1, dropTierBump:0};
+  for (const k of STAT_KEYS) agg.stat[k] = 0;
+  for (const key of hero.skills){
+    const sk = SKILLS[key];
+    if (!sk) continue;
+    const e = sk.effect;
+    switch (e.kind){
+      case "stat": agg.stat[e.stat] += e.amount; break;
+      case "mult":
+        if (e.target === "xp") agg.xpMult += e.amount;
+        else if (e.target === "gold") agg.goldMult += e.amount;
+        break;
+      case "taskSpeed": agg.taskSpeedMult -= e.amount; break;
+      case "mitigation": agg.mitigation += e.amount; break;
+      // Evasion is the DEX classes' answer to soak. It stacks on TOP of the
+      // DEX-derived evasion cap deliberately — capping it again would recreate
+      // exactly the dead-stat problem that made Assassin unplayable.
+      case "evasion": agg.evasion += e.amount; break;
+      case "economy":
+        if (e.target === "sell") agg.sellMult += e.amount;
+        else if (e.target === "buy") agg.buyMult -= e.amount;
+        break;
+      case "dropQuality": agg.dropTierBump += e.amount; break;
+    }
+  }
+  // Safety clamps (BALANCE-tunable): a handful of skill gates should never
+  // let one system fully trivialize itself no matter how many stack onto
+  // the same lever.
+  agg.taskSpeedMult = Math.max(BALANCE.skillTaskSpeedFloor, agg.taskSpeedMult);
+  agg.mitigation = Math.min(BALANCE.skillMitigationCap, agg.mitigation);
+  agg.buyMult = Math.max(BALANCE.skillBuyMultFloor, agg.buyMult);
+  return agg;
+}
+
+function effStats(hero, gear){
+  const out = {};
+  for (const k of STAT_KEYS) out[k] = hero.stats[k];
+  if (gear) for (const slot of SLOT_KEYS){
+    const item = gear[slot];
+    if (item) for (const k in item.stats) out[k] += item.stats[k];
+  }
+  const agg = skillAgg(hero);
+  for (const k of STAT_KEYS) out[k] += agg.stat[k];
+  return out;
+}
+
+function derived(hero, gear){
+  const st = effStats(hero, gear);
+  const race = RACES[hero.race];
+  const agg = skillAgg(hero);
+  const maxHP = 50 + st.con * 8 + hero.level * 10;
+  return {
+    stats: st,
+    maxHP,
+    taskMs: TASK_DURATION * 1000
+            * Math.max(0.65, 1 - st.str * 0.004)
+            * (race.taskSpeedMult || 1)
+            * agg.taskSpeedMult,
+    xpMult:   (1 + st.int * 0.012) * (race.xpMult || 1) * agg.xpMult,
+    goldMult: (1 + st.cha * 0.010) * agg.goldMult,
+    evasion:  Math.min(BALANCE.evasionCap, st.dex * 0.008)
+              + (race.evasionBonus || 0) + agg.evasion,
+    perilMult: Math.max(0.70, 1 - st.wis * 0.006),
+    regenPerTask: maxHP * BALANCE.regenBase
+                  * (1 + Math.min(st.con, BALANCE.regenConCap) / BALANCE.regenConDiv)
+                  * (race.regenMult || 1),
+    dropChance: 0.12 + (race.dropBonus || 0) + (hero.metaDropBonus || 0),
+    mitigation: agg.mitigation,
+    sellMult: agg.sellMult,
+    buyMult: agg.buyMult,
+    dropTierBump: agg.dropTierBump,
+  };
+}
+
+/* --------------------------------- log ----------------------------------- */
+// importance: 0 routine (pruned) · 1 notable (kept) · 2 story beat (kept, framed)
+
+function logEvent(S, type, text, imp){
+  // Stamped with the SIMULATED clock, not the wall clock. Eight hours of
+  // offline catch-up must read as eight hours in the chronicle, not as one
+  // minute at boot time.
+  S.log.push({t: S.world.clock || Date.now(), type, text, imp: imp || 0});
+  if (S.log.length > LOG_ROUTINE_MAX + 400) pruneLog(S);
+}
+function pruneLog(S){
+  const kept = [];
+  let routine = 0;
+  for (let i = S.log.length - 1; i >= 0; i--){
+    const e = S.log[i];
+    if (e.imp > 0) { kept.push(e); continue; }
+    if (routine < LOG_ROUTINE_MAX) { kept.push(e); routine++; }
+  }
+  kept.reverse();
+  S.log = kept;
+}
+
+/* ============================ SIMULATION CORE ============================= */
+/* No DOM. No Date.now() for pacing. Pure with respect to (state, rng).       */
+
+function allocateStats(S){
+  // +3 points per level, distributed by class weighting. Fractional carry
+  // keeps the long-run split exact and stays deterministic (no rng), so two
+  // heroes of the same class and level always have the same statline.
+  const h = S.hero;
+  const w = CLASSES[h.cls].weights;
+  const total = STAT_KEYS.reduce((a,k) => a + w[k], 0);
+  for (const k of STAT_KEYS) h.statFrac[k] += 3 * w[k] / total;
+  for (const k of STAT_KEYS){
+    const whole = Math.floor(h.statFrac[k]);
+    if (whole > 0){ h.stats[k] += whole; h.statFrac[k] -= whole; }
+  }
+}
+
+function levelUp(S){
+  const h = S.hero;
+  const before = derived(h, S.gear).maxHP;
+  h.level++;
+  allocateStats(S);
+  const after = derived(h, S.gear).maxHP;
+  h.hp += Math.max(0, after - before);   // new max HP arrives as usable HP
+  logEvent(S, "level", `${h.name} reaches level ${h.level}.`, 1);
+
+  // Story beats (design doc §12) fire on LEVEL thresholds, not task counts,
+  // and always — even on a level that also opens a blocking choice below.
+  const newAct = actForLevel(h.level).n;
+  if (newAct !== S.world.act){
+    S.world.act = newAct;
+    const variants = ACT_MAJOR[newAct][S.world.thread.antagonistType];
+    logEvent(S, "story", fillTemplate(pick(variants), threadVars(S)), 2);
+    if (S._meta){
+      if (newAct === 2) unlockAchievement(S._meta, "actII", S);
+      if (newAct === 3) unlockAchievement(S._meta, "actIII", S);
+    }
+  }
+  if (h.level === 40 && S._meta) unlockAchievement(S._meta, "level40", S);
+  if (MINOR_BEAT_LEVELS[h.level]){
+    const actN = MINOR_BEAT_LEVELS[h.level];
+    const sign = pick(ANTAGONIST_TYPES[S.world.thread.antagonistType].signs);
+    const tmpl = pick(ACT_MINOR[actN]);
+    logEvent(S, "story", fillTemplate(tmpl, threadVars(S, {sign})), 2);
+  }
+
+  // Class advancement is a blocking choice: the sim stops here and waits.
+  if (h.level === 10 && CLASSES[h.cls].tier === 0){
+    S.world.pendingChoice = {kind:"class", options:["soldier","scout","apprentice"]};
+    S.world.state = "AWAITING_CHOICE";
+    logEvent(S, "choice", `${h.name} stands at a crossroads. A path must be chosen.`, 2);
+    return;
+  }
+  // Tier-2 advancement at L25 forks each tier-1 class four ways (design doc §6).
+  if (h.level === 25 && CLASSES[h.cls].tier === 1){
+    S.world.pendingChoice = {kind:"class2", options: ADVANCED_OF[h.cls]};
+    S.world.state = "AWAITING_CHOICE";
+    logEvent(S, "choice", `${h.name} feels the shape of what he might become.`, 2);
+    return;
+  }
+  // Skill picks at the design doc's eight milestone levels (§8) — same
+  // blocking machinery, drawn from whatever class's pool the hero currently
+  // belongs to (novice at L5, tier-1 at L15/20, tier-2 at L30-50).
+  if (SKILL_LEVELS.includes(h.level)){
+    const opts = rollSkillOptions(S);
+    if (opts.length){
+      S.world.pendingChoice = {kind:"skill", options: opts};
+      S.world.state = "AWAITING_CHOICE";
+      logEvent(S, "choice", `${h.name} has learned enough to refine his craft.`, 2);
+      return;
+    }
+  }
+  // Zone changes are level-gated and automatic.
+  const z = zoneForLevel(h.level);
+  if (z.n !== S.world.zone) beginTravel(S, z.n);
+}
+
+// Which two (or fewer, if the pool is nearly exhausted) not-yet-owned skills
+// to offer from the hero's current class pool. Pool sizes are chosen so this
+// never comes up empty on a real progression path — see the comment above
+// SKILLS.
+function rollSkillOptions(S){
+  const h = S.hero;
+  const pool = (SKILL_POOLS[h.cls] || []).filter(k => !h.skills.includes(k));
+  return shuffle(pool.slice()).slice(0, Math.min(2, pool.length));
+}
+
+// Pushes a skill onto the hero permanently. Cheat-death skills get queued
+// separately (with their own flavor text) rather than folded into the
+// generic race/gear cheatDeathCharges counter, so the log line that fires on
+// consumption can still name the specific skill — see rollPeril().
+function grantSkill(S, key){
+  const h = S.hero;
+  h.skills.push(key);
+  const sk = SKILLS[key];
+  if (sk && sk.effect.kind === "cheatdeath"){
+    h.skillCheatDeathQueue = h.skillCheatDeathQueue || [];
+    const n = sk.effect.amount || 1;
+    for (let i = 0; i < n; i++) h.skillCheatDeathQueue.push(sk.effect.text);
+  }
+}
+
+// Second Wind and its kin: called once per task after damage has resolved.
+// Heals fire in hero.skills order; "once per merchant cycle" flags live in
+// hero.skillState and are cleared in doMerchantTrip().
+function checkTriggers(S){
+  const h = S.hero;
+  const d = derived(h, S.gear);
+  const frac = h.hp / d.maxHP;
+  for (const key of h.skills){
+    const sk = SKILLS[key];
+    if (!sk || sk.effect.kind !== "triggered") continue;
+    const e = sk.effect;
+    if (e.event !== "lowHp" || frac >= e.threshold) continue;
+    h.skillState = h.skillState || {};
+    if (e.once === "merchantCycle" && h.skillState[key]) continue;
+    const amt = Math.round(d.maxHP * e.healFrac);
+    h.hp = Math.min(d.maxHP, h.hp + amt);
+    if (e.once === "merchantCycle") h.skillState[key] = true;
+    logEvent(S, "trigger", e.text.replace("{name}", h.name).replace("{amt}", amt), 2);
+  }
+}
+
+function beginTravel(S, zoneN){
+  S.world.state = "TRAVELING";
+  S.world.travelKind = "zone";
+  S.world.travelMsLeft = TRAVEL_SECONDS * 1000;
+  S.world.pendingZone = zoneN;
+  logEvent(S, "travel", `${S.hero.name} sets out for ${ZONES[zoneN-1].name}.`, 1);
+}
+function arriveInZone(S){
+  const n = S.world.pendingZone;
+  S.world.zone = n;
+  S.world.pendingZone = null;
+  S.world.travelKind = null;
+  S.world.state = "QUESTING";
+  S.world.taskProgressMs = 0;
+  S.world.taskName = pick(TASKS[n]);
+  logEvent(S, "zone", ARRIVAL[n].replace("{name}", S.hero.name), 2);
+}
+
+/* ------------------------------ gear & drops ------------------------------ */
+
+function rollTier(bump){
+  // `bump` is now a numeric strength (0 = no bump, 1 = the merchant's standard
+  // "slight tier bonus" per design doc §9) rather than a boolean, so the
+  // Treasure Sense/Loreman's Eye drop-quality skill effect can add a partial
+  // bump on top of — or independent of — the merchant's.
+  bump = bump || 0;
+  const keys = Object.keys(TIERS);
+  let weights = keys.map(k => TIERS[k].weight);
+  if (bump){
+    const shift = Math.min(0.9, 0.2 * bump);
+    weights = weights.map((w,i) => i === 0 ? w * (1 - shift) : w * (1 + shift));
+    const sum = weights.reduce((a,b) => a+b, 0);
+    weights = weights.map(w => w / sum);
+  }
+  const r = rng();
+  let acc = 0;
+  for (let i = 0; i < keys.length; i++){
+    acc += weights[i];
+    if (r < acc) return keys[i];
+  }
+  return keys[keys.length-1];
+}
+
+function rollItemStats(slot, budget){
+  // 1-3 stats: the slot's favored stat(s) first, topped up from the full
+  // stat list if the slot doesn't have enough favored stats to fill the roll.
+  const count = randInt(1, Math.min(3, budget));
+  const pool = shuffle(SLOT_FAVORED[slot].slice());
+  const chosen = pool.slice(0, count);
+  while (chosen.length < count){
+    const k = pick(STAT_KEYS);
+    if (!chosen.includes(k)) chosen.push(k);
+  }
+  const base = Math.floor(budget / count);
+  let remainder = budget - base * count;
+  const stats = {};
+  for (const k of chosen){
+    stats[k] = base + (remainder > 0 ? 1 : 0);
+    if (remainder > 0) remainder--;
+  }
+  return stats;
+}
+
+function genItemName(slot, tier){
+  return `${pick(PREFIX_BY_TIER[tier])} ${pick(BASE_BY_SLOT[slot])} of ${pick(SUFFIX_BY_TIER[tier])}`;
+}
+
+// Gloves and boots base names (Gauntlets, Sabatons, Vambraces, Wraps…) are
+// inherently plural — they come in pairs — so "a/an" reads wrong no matter
+// which base got picked ("an epic Thornbound Sabatons"). Rather than force
+// every base name in BASE_BY_SLOT singular (losing the flavor of "a pair of
+// Gauntlets"), phrase those two slots with "a pair of" instead of an article.
+// Every other slot's bases are genuinely singular, so they keep aOrAn().
+const PLURAL_SLOTS = new Set(["gloves","boots"]);
+function itemPhrase(item){
+  const tierWord = (item.tier === "epic" || item.tier === "legendary") ? item.tier + " " : "";
+  if (PLURAL_SLOTS.has(item.slot)) return `a pair of ${tierWord}${item.name}`;
+  // The article agrees with whatever actually follows it — "an epic Sallet",
+  // not "a epic Sallet" — so it must be read off the tier word when present.
+  return `${aOrAn(tierWord || item.name)} ${tierWord}${item.name}`;
+}
+
+// slot omitted → random (a task drop can land in any slot); passed explicitly
+// for merchant stock, which targets the hero's weakest equipped slot.
+// skillBump adds the hero's dropQuality skill effect on top of the merchant bump.
+// forceTier (Phase 7) skips the roll entirely — used for the ascendOnce
+// starting-relic reward, where the tier is a fixed unlock, not a drop.
+function generateItem(zoneN, slot, tierBump, skillBump, forceTier){
+  const z = ZONES[zoneN-1];
+  slot = slot || pick(SLOT_KEYS);
+  const ilvl = randInt(z.ilvl[0], z.ilvl[1]);
+  const tier = forceTier || rollTier((tierBump ? 1 : 0) + (skillBump || 0));
+  const score = ilvl * TIERS[tier].mult;
+  const budget = Math.max(1, Math.round(score * BALANCE.gearBudget));
+  const item = {
+    name: genItemName(slot, tier), slot, tier, ilvl, score,
+    stats: rollItemStats(slot, budget), cheatDeath: 0,
+  };
+  // Relics are the only slot that can grant a cheat-death charge — kept
+  // uncommon so it still reads as a notable find rather than a routine roll.
+  if (slot === "relic" && rng() < 0.15) item.cheatDeath = 1;
+  return item;
+}
+
+function equipItem(S, item){
+  const old = S.gear[item.slot];
+  if (old && old.cheatDeath) S.hero.cheatDeathCharges = Math.max(0, S.hero.cheatDeathCharges - old.cheatDeath);
+  S.gear[item.slot] = item;
+  if (item.cheatDeath) S.hero.cheatDeathCharges += item.cheatDeath;
+  checkFullRareSet(S);
+  return old;
+}
+
+function rollDrop(S){
+  const h = S.hero;
+  const d = derived(h, S.gear);
+  if (rng() >= d.dropChance) return;
+  const item = generateItem(S.world.zone, null, false, d.dropTierBump);
+  S.stats.itemsFound++;
+  if (item.tier === "legendary" && S._meta) unlockAchievement(S._meta, "legendaryFound", S);
+  const equipped = S.gear[item.slot];
+  if (!equipped || item.score > equipped.score){
+    equipItem(S, item);
+    const imp = (item.tier === "epic" || item.tier === "legendary") ? 2 : 1;
+    const text = equipped
+      ? `${h.name} finds ${itemPhrase(item)} — it outclasses the ${equipped.name} and takes its place.`
+      : `${h.name} finds ${itemPhrase(item)} and arms himself with it.`;
+    logEvent(S, "gear", text, imp);
+    return;
+  }
+  S.inventory.push(item);
+}
+
+/* ----------------------------- merchant trips ------------------------------ */
+// Inventory-full is the trigger; the trip itself (sell/buy/heal) is
+// instantaneous story-time, bookended by the same TRAVELING machinery zone
+// changes use, just with an AT_MERCHANT waypoint state in between.
+
+function beginMerchantTrip(S){
+  S.world.state = "TRAVELING";
+  S.world.travelKind = "merchant_out";
+  S.world.travelMsLeft = MERCHANT_SECONDS * 1000;
+  logEvent(S, "travel", `${S.hero.name}'s pack is full. He turns back toward town.`, 1);
+}
+
+function doMerchantTrip(S){
+  const h = S.hero;
+  const z = ZONES[S.world.zone - 1];
+  const d = derived(h, S.gear);
+  const cha = d.stats.cha;
+  const goldAtTripStart = h.gold; // debug-only, for balance measurement (see hook below)
+
+  // Prices track the zone's economic tier, not just itemScore — see the
+  // BALANCE.priceZoneExp comment. zoneFactor is >1 in every zone past the
+  // first and applies identically to buying and selling, so selling stays
+  // meaningful relative to buying at every depth.
+  const zoneFactor = Math.pow(z.gold / ZONES[0].gold, BALANCE.priceZoneExp);
+  const priceOf = score => Math.round(score * BALANCE.buyPriceMult * zoneFactor * (1 - cha * 0.005) * d.buyMult);
+
+  let earned = 0;
+  for (const item of S.inventory) earned += Math.round(item.score * BALANCE.sellPriceMult * zoneFactor * (1 + cha * 0.005) * d.sellMult);
+  const soldCount = S.inventory.length;
+  h.gold += earned;
+  S.stats.goldEarned += earned;
+  S.inventory = [];
+
+  function weakestSlot(){
+    let slot = SLOT_KEYS[0], score = Infinity;
+    for (const s of SLOT_KEYS){
+      const sc = S.gear[s] ? S.gear[s].score : 0;
+      if (sc < score){ score = sc; slot = s; }
+    }
+    return {slot, score};
+  }
+
+  // Keep buying upgrades for the weakest slot, re-evaluating after each
+  // purchase, while he can afford them and they're a genuine upgrade — capped
+  // per trip (merchantMaxBuys) so a rich hero re-kits, not re-kits forever.
+  const bought = [];
+  let blockedByPrice = false;
+  let spent = 0;
+  while (bought.length < BALANCE.merchantMaxBuys){
+    const {slot, score} = weakestSlot();
+    const stock = generateItem(z.n, slot, true, d.dropTierBump);
+    if (stock.score <= score) break;          // nothing better on offer for this slot tonight
+    const price = priceOf(stock.score);
+    if (h.gold < price){ blockedByPrice = true; break; }
+    h.gold -= price;
+    spent += price;
+    equipItem(S, stock);
+    bought.push(stock);
+  }
+
+  // Commissioning: once ordinary upgrades are exhausted, surplus gold can pay
+  // a premium to guarantee a specific slot at a floor tier rather than hoping
+  // stock rolls well — what a rich hero spends runoff on. Deliberately skips
+  // the relic slot while the L48+ epic-relic ascension guarantee below still
+  // needs it, so the two never bid on the same purchase, and deliberately
+  // guarantees a tier BELOW that guarantee's epic/legendary floor, so
+  // commissioning is never a substitute for it.
+  let commissioned = null;
+  {
+    const relicGuaranteePending = h.level >= 48 && !hasEpicOrBetterRelic(S.gear);
+    let cSlot = null, cScore = Infinity;
+    for (const s of SLOT_KEYS){
+      if (s === "relic" && relicGuaranteePending) continue;
+      const sc = S.gear[s] ? S.gear[s].score : 0;
+      if (sc < cScore){ cScore = sc; cSlot = s; }
+    }
+    if (cSlot){
+      const commission = generateItem(z.n, cSlot, true, d.dropTierBump, BALANCE.commissionTier);
+      const price = Math.round(commission.score * BALANCE.buyPriceMult * BALANCE.commissionPriceMult
+                                * zoneFactor * (1 - cha * 0.005) * d.buyMult);
+      if (commission.score > cScore && h.gold >= price){
+        h.gold -= price;
+        spent += price;
+        equipItem(S, commission);
+        commissioned = commission;
+      }
+    }
+  }
+
+  // Ascension-gate guarantee (CLAUDE.md "known polish", design doc §10):
+  // reaching level 50 unlocks the confrontation only with an Epic-or-better
+  // relic equipped, but only ~2.2 Epic+ relics drop per full run on average —
+  // roughly 11% of heroes who reach L50 would have no relic and no way to
+  // ever trigger their own ending. Rather than relaxing the gate, once the
+  // hero is deep enough to plausibly hit 50, the merchant makes sure a relic
+  // worthy of the confrontation is on the table.
+  if (h.level >= 48 && !hasEpicOrBetterRelic(S.gear)){
+    const rilvl = randInt(z.ilvl[0], z.ilvl[1]);
+    const rtier = rng() < BALANCE.confrontRelicLegendaryChance ? "legendary" : "epic";
+    const rscore = rilvl * TIERS[rtier].mult;
+    const rbudget = Math.max(1, Math.round(rscore * BALANCE.gearBudget));
+    const relic = {name: genItemName("relic", rtier), slot:"relic", tier: rtier, ilvl: rilvl, score: rscore,
+                    stats: rollItemStats("relic", rbudget), cheatDeath: rng() < 0.15 ? 1 : 0};
+    const relicPrice = priceOf(relic.score);
+    const curScore = S.gear.relic ? S.gear.relic.score : 0;
+    if (relic.score > curScore && h.gold >= relicPrice){
+      h.gold -= relicPrice;
+      spent += relicPrice;
+      equipItem(S, relic);
+      if (relic.tier === "legendary" && S._meta) unlockAchievement(S._meta, "legendaryFound", S);
+      logEvent(S, "gear", `${h.name} finds the merchant has something rarer than usual laid out — ${itemPhrase(relic)} — and doesn't leave without it.`, 2);
+    }
+  }
+
+  // The heal is the point of the trip — merchant trips are effectively extra
+  // lives, which makes their frequency and depth a primary balancing knob.
+  const mMax = derived(h, S.gear).maxHP;
+  h.hp = Math.min(mMax, h.hp + mMax * BALANCE.merchantHeal);
+  S.stats.merchantTrips = (S.stats.merchantTrips || 0) + 1;
+  h.skillState = {};   // refresh once-per-cycle triggered skills (design doc §9 step 4)
+  logEvent(S, "merchant", merchantTripLine(h, soldCount, earned, bought, commissioned, blockedByPrice), 1);
+  // Debug-only hook for balance measurement (see CLAUDE.md testing notes) —
+  // a no-op unless a test harness has set window._trackMerchant.
+  if (typeof window !== "undefined" && window._trackMerchant)
+    window._trackMerchant({zone: z.n, level: h.level, earned, spent, boughtCount: bought.length,
+                            commissioned: !!commissioned, goldAfter: h.gold, goldAtTripStart});
+}
+
+// Phrase banks for the two shapes a trip with real stakes can take: a
+// spend-down (multiple upgrades bought) and being priced out (couldn't
+// afford what was on offer). Kept the same grim, grounded register as
+// PERILS/DODGE_TAGS rather than a receipt.
+const MERCHANT_REKIT_LINES = [
+  "leaves the stall a harder man to kill than he walked in",
+  "spends like he expects to need every bit of it",
+  "walks out re-kitted, lighter of purse and heavier of gear",
+];
+const MERCHANT_PRICED_OUT_LINES = [
+  "what's worth having tonight is priced past him",
+  "the good gear wants a richer man's coin",
+  "he counts his coin twice and still can't stretch to it",
+];
+
+function merchantTripLine(h, soldCount, earned, bought, commissioned, blockedByPrice){
+  const soldPart = soldCount > 0
+    ? `unloads ${soldCount} piece${soldCount === 1 ? "" : "s"} of salvage for ${earned} gold`
+    : "finds nothing worth selling";
+
+  let outcome = "";
+  if (bought.length > 1) outcome = `and ${pick(MERCHANT_REKIT_LINES)} — ${bought.length} pieces replaced`;
+  else if (bought.length === 1) outcome = `and walks out with ${itemPhrase(bought[0])}`;
+  else if (blockedByPrice) outcome = `but ${pick(MERCHANT_PRICED_OUT_LINES)}`;
+
+  let text = `${h.name} makes for the merchant's stall — ${soldPart}${outcome ? " " + outcome : ""}. `;
+  if (commissioned) text += `He pays a hard premium to have ${itemPhrase(commissioned)} made to order. `;
+  text += `Wounds close, breath comes easy again, and he turns back to the road.`;
+  return text;
+}
+
+function arriveAtMerchant(S){
+  S.world.state = "AT_MERCHANT";
+  doMerchantTrip(S);
+  S.world.state = "TRAVELING";
+  S.world.travelKind = "merchant_return";
+  S.world.travelMsLeft = MERCHANT_SECONDS * 1000;
+}
+
+function arriveBackFromMerchant(S){
+  S.world.travelKind = null;
+  S.world.state = "QUESTING";
+  S.world.taskProgressMs = 0;
+  S.world.taskName = pick(TASKS[S.world.zone]);
+}
+
+function completeTask(S){
+  const h = S.hero, w = S.world;
+  const d = derived(h, S.gear);
+  const z = ZONES[w.zone - 1];
+
+  const xp   = Math.round(z.xp   * d.xpMult);
+  const gold = Math.round(z.gold * d.goldMult);
+  h.xp += xp;
+  h.gold += gold;
+  S.stats.tasksCompleted++;
+  S.stats.goldEarned += gold;
+
+  // Regen lands before the peril roll, so the day's toll is measured against
+  // a topped-up hero rather than whatever HP he happened to end the last task at.
+  h.hp = Math.min(d.maxHP, h.hp + d.regenPerTask);
+
+  logEvent(S, "task", `${w.taskName} — ${xp} xp, ${gold} gold.`, 0);
+
+  rollDrop(S);
+  rollPeril(S);
+  if (w.state !== "QUESTING") return;   // dead — the sim halts, nothing left to check
+  checkTriggers(S);
+
+  // Level-up may cascade; stop immediately if it blocks or starts travel.
+  let guard = 0;
+  while (h.level < 50 && h.xp >= xpToNext(h.level) && guard++ < 60){
+    h.xp -= xpToNext(h.level);
+    levelUp(S);
+    if (w.state !== "QUESTING") return;
+  }
+  if (h.level >= 50) h.xp = 0;
+
+  // Ascension gate (design doc §10): level 50 + an Epic-or-better relic.
+  // Checked every task once level 50 so a relic gained here via a drop, or
+  // via a merchant trip, triggers the confrontation on the very next tick
+  // rather than only at the moment of leveling.
+  if (h.level >= 50 && w.state === "QUESTING" && hasEpicOrBetterRelic(S.gear)){
+    beginConfrontation(S);
+    return;
+  }
+
+  if (S.inventory.length >= invSlots(S)){ beginMerchantTrip(S); return; }
+
+  w.taskName = pick(TASKS[w.zone]);
+}
+
+function hasEpicOrBetterRelic(gear){
+  const r = gear.relic;
+  return !!(r && (r.tier === "epic" || r.tier === "legendary"));
+}
+
+// Percentage-of-maxHP damage is deliberate (design doc §7) — it keeps the
+// danger curve stable as HP scales, so tuning touches one number, not two.
+function rollPeril(S){
+  const h = S.hero, w = S.world, d = derived(h, S.gear);
+  const z = ZONES[w.zone - 1];
+  if (rng() >= z.peril * d.perilMult * BALANCE.perilChanceMult) return;
+
+  const desc = pick(PERILS[z.n]);
+  if (rng() < d.evasion){
+    logEvent(S, "peril", `${desc} — ${pick(DODGE_TAGS)}`, 0);
+    S.stats.perilsSurvived++;
+    return;
+  }
+
+  const frac = (z.dmg[0] + rng() * (z.dmg[1] - z.dmg[0])) * BALANCE.perilDmgMult;
+  const pool = BALANCE.dmgHpBlend * d.maxHP
+             + (1 - BALANCE.dmgHpBlend) * refHP(h.level);
+  const dmg = Math.round(pool * frac * (1 - d.mitigation));
+  const wasSafe = h.hp / d.maxHP >= 0.20;
+  const after = h.hp - dmg;
+
+  if (after > 0){
+    h.hp = after;
+    logEvent(S, "peril", `${desc} — ${dmg} damage.`, 0);
+    S.stats.perilsSurvived++;
+    // Near-death is on the permanent-retention list, but only the crossing,
+    // not every subsequent task spent under the threshold.
+    if (wasSafe && h.hp / d.maxHP < 0.20)
+      logEvent(S, "neardeath", `${h.name} is barely standing. HP critical.`, 1);
+    return;
+  }
+
+  // Skill-granted charges (Ancestral Ward and kin) carry their own flavor
+  // text and are spent before the generic race/gear charges, so a hero who
+  // has one always gets the named line rather than the generic one.
+  if (h.skillCheatDeathQueue && h.skillCheatDeathQueue.length){
+    const text = h.skillCheatDeathQueue.shift();
+    h.hp = 1;
+    logEvent(S, "cheatdeath", `${desc} — ${text.replace("{name}", h.name)}`, 2);
+    S.stats.perilsSurvived++;
+    return;
+  }
+
+  if (h.cheatDeathCharges > 0){
+    h.cheatDeathCharges--;
+    h.hp = 1;
+    logEvent(S, "cheatdeath", `${desc} — ${pick(CHEATDEATH_LINES).replace("{name}", h.name)}`, 2);
+    S.stats.perilsSurvived++;
+    return;
+  }
+
+  h.hp = 0;
+  w.state = "DEAD";
+  w.killedBy = desc;
+  w.epilogueIdx = randInt(0, EPILOGUES.length - 1);
+  S.stats.deathTime = w.clock;
+  onHeroDeath(S);
+  logEvent(S, "death", `${desc} — ${h.name}'s road ends here.`, 2);
+}
+
+// Begins the scripted ~10-step final confrontation (design doc §10). Not a
+// blocking choice — the gate (level 50 + Epic-or-better relic) is checked
+// automatically in completeTask(), and once satisfied the sim just walks
+// into the climax the way it walks into a zone change.
+function beginConfrontation(S){
+  const w = S.world;
+  w.state = "CONFRONTATION";
+  w.confrontation = {step: 0};
+  w.taskProgressMs = 0;
+  logEvent(S, "confrontation", fillTemplate(pick(CONFRONTATION_ANNOUNCE), threadVars(S)), 2);
+}
+
+// One step of the confrontation: a scripted narrative beat (not a random
+// task line) plus an elevated peril roll. Ten of these, survived in a row,
+// is ascension.
+function completeConfrontationStep(S){
+  const h = S.hero, w = S.world;
+  const d = derived(h, S.gear);
+  const type = w.thread.antagonistType;
+
+  // Some recovery between clashes, but nowhere near a merchant's full heal —
+  // there is no merchant inside the confrontation. BALANCE.confrontRegenMult
+  // is the knob (0 = none, 1 = a full normal task's regen).
+  h.hp = Math.min(d.maxHP, h.hp + d.regenPerTask * BALANCE.confrontRegenMult);
+
+  const seq = CONFRONTATION_SEQUENCE[type];
+  const idx = Math.min(w.confrontation.step, seq.length - 1);
+  logEvent(S, "confrontation", fillTemplate(seq[idx], threadVars(S)), 2);
+
+  rollConfrontationPeril(S);
+  if (w.state !== "CONFRONTATION") return;   // death ended it, same as rollPeril()
+
+  w.confrontation.step++;
+  if (w.confrontation.step >= CONFRONTATION_STEPS){
+    w.state = "ASCENDED";
+    w.ascendedAt = w.clock;
+    w.ascensionEpilogueIdx = randInt(0, ASCENSION_EPILOGUES.length - 1);
+    logEvent(S, "ascension", fillTemplate(pick(ASCENSION_LINES[type]), threadVars(S)), 2);
+    if (S._meta){
+      S._meta.ascensionCount = (S._meta.ascensionCount || 0) + 1;
+      if (S._meta.ascensionCount === 1) unlockAchievement(S._meta, "ascendOnce", S);
+      if (S._meta.ascensionCount === 3) unlockAchievement(S._meta, "ascendThrice", S);
+    }
+  }
+}
+
+// Elevated-danger analogue of rollPeril() for the confrontation only — own
+// BALANCE knobs (confrontPerilChance/confrontDmgMin/Max), own flavor bank,
+// but the exact same evasion/mitigation/cheat-death machinery so a hero's
+// build still matters at the very end.
+function rollConfrontationPeril(S){
+  const h = S.hero, w = S.world, d = derived(h, S.gear);
+  const type = w.thread.antagonistType;
+  if (rng() >= BALANCE.confrontPerilChance * d.perilMult) return;
+
+  const desc = fillTemplate(pick(CONFRONTATION_PERILS[type]), threadVars(S));
+  if (rng() < d.evasion){
+    logEvent(S, "peril", `${desc} — ${pick(DODGE_TAGS)}`, 1);
+    S.stats.perilsSurvived++;
+    return;
+  }
+
+  const frac = BALANCE.confrontDmgMin + rng() * (BALANCE.confrontDmgMax - BALANCE.confrontDmgMin);
+  const pool = BALANCE.dmgHpBlend * d.maxHP + (1 - BALANCE.dmgHpBlend) * refHP(h.level);
+  const dmg = Math.round(pool * frac * (1 - d.mitigation));
+  const after = h.hp - dmg;
+
+  if (after > 0){
+    h.hp = after;
+    logEvent(S, "peril", `${desc} — ${dmg} damage.`, 1);
+    S.stats.perilsSurvived++;
+    return;
+  }
+
+  if (h.skillCheatDeathQueue && h.skillCheatDeathQueue.length){
+    const text = h.skillCheatDeathQueue.shift();
+    h.hp = 1;
+    logEvent(S, "cheatdeath", `${desc} — ${text.replace("{name}", h.name)}`, 2);
+    S.stats.perilsSurvived++;
+    return;
+  }
+  if (h.cheatDeathCharges > 0){
+    h.cheatDeathCharges--;
+    h.hp = 1;
+    logEvent(S, "cheatdeath", `${desc} — ${pick(CHEATDEATH_LINES).replace("{name}", h.name)}`, 2);
+    S.stats.perilsSurvived++;
+    return;
+  }
+
+  h.hp = 0;
+  w.state = "DEAD";
+  w.killedBy = desc;
+  w.epilogueIdx = randInt(0, EPILOGUES.length - 1);
+  w.diedInConfrontation = true;
+  S.stats.deathTime = w.clock;
+  onHeroDeath(S);
+  logEvent(S, "death", `${desc} — ${h.name}'s road ends here.`, 2);
+}
+
+/**
+ * Consume `ms` of simulated time. Returns the milliseconds it could NOT spend
+ * because the hero entered a blocking state (AWAITING_CHOICE / DEAD /
+ * ASCENDED). Returning leftover instead of discarding it is what makes
+ * bank-and-chain catch-up work.
+ */
+function advance(S, ms){
+  let guard = 0;
+  while (ms > 0){
+    if (++guard > 500000) break;              // paranoia against a zero-cost state
+    const w = S.world;
+    if (w.state === "QUESTING"){
+      const need = derived(S.hero, S.gear).taskMs - w.taskProgressMs;
+      if (ms < need){ w.taskProgressMs += ms; w.clock += ms; return 0; }
+      ms -= need; w.taskProgressMs = 0; w.clock += need;
+      completeTask(S);
+    } else if (w.state === "TRAVELING"){
+      if (ms < w.travelMsLeft){ w.travelMsLeft -= ms; w.clock += ms; return 0; }
+      ms -= w.travelMsLeft; w.clock += w.travelMsLeft; w.travelMsLeft = 0;
+      if (w.travelKind === "merchant_out") arriveAtMerchant(S);
+      else if (w.travelKind === "merchant_return") arriveBackFromMerchant(S);
+      else arriveInZone(S);
+    } else if (w.state === "CONFRONTATION"){
+      const need = derived(S.hero, S.gear).taskMs - w.taskProgressMs;
+      if (ms < need){ w.taskProgressMs += ms; w.clock += ms; return 0; }
+      ms -= need; w.taskProgressMs = 0; w.clock += need;
+      completeConfrontationStep(S);
+    } else {
+      return ms;                              // blocked (AWAITING_CHOICE / DEAD / ASCENDED)
+    }
+  }
+  return 0;
+}
+
+function resolveChoice(S, optionKey){
+  const c = S.world.pendingChoice;
+  if (!c) return;
+  if (c.kind === "class"){
+    S.hero.cls = optionKey;
+    S.hero.classPath.push(optionKey);
+    logEvent(S, "class", `${S.hero.name} takes up the way of the ${CLASSES[optionKey].name}.`, 2);
+  } else if (c.kind === "class2"){
+    S.hero.cls = optionKey;
+    S.hero.classPath.push(optionKey);
+    logEvent(S, "class", `${S.hero.name} takes up the way of the ${CLASSES[optionKey].name}.`, 2);
+    const passiveKey = CLASSES[optionKey].passive;
+    if (passiveKey){
+      grantSkill(S, passiveKey);
+      const sk = SKILLS[passiveKey];
+      logEvent(S, "skill", `${S.hero.name} awakens to ${sk.name} — ${sk.blurb}`, 2);
+    }
+    if (S._meta){
+      S._meta.classesReached = S._meta.classesReached || [];
+      if (!S._meta.classesReached.includes(optionKey)) S._meta.classesReached.push(optionKey);
+      if (S._meta.classesReached.length >= 12) unlockAchievement(S._meta, "allAdvancedClasses", S);
+    }
+  } else if (c.kind === "skill"){
+    grantSkill(S, optionKey);
+    const sk = SKILLS[optionKey];
+    logEvent(S, "skill", `${S.hero.name} learns ${sk.name} — ${sk.blurb}`, 2);
+  }
+  S.world.pendingChoice = null;
+  S.world.state = "QUESTING";
+  const z = zoneForLevel(S.hero.level);
+  if (z.n !== S.world.zone) beginTravel(S, z.n);
+}
+
+/* ========================== end simulation core ========================== */
+
+/* ------------------------------ persistence ------------------------------ */
+
+let S = null;
+let META = null;
+
+function defaultMeta(){
+  return {version: META_VERSION, achievements:[], unlocks:{}, hall:[], heroesRun:0,
+          deathZones:[], classesReached:[], ascensionCount:0, heroesLaidToRest:0};
+}
+// Every new meta field needs both a default here AND a fallback below, same
+// discipline as the hero save's migrate() — a corrupted or pre-Phase-7
+// goquest_meta must load cleanly, not throw.
+function migrateMeta(m){
+  if (!m || typeof m !== "object") return defaultMeta();
+  if (m.version === undefined) m.version = 1;
+  if (!Array.isArray(m.achievements)) m.achievements = [];
+  if (!m.unlocks || typeof m.unlocks !== "object") m.unlocks = {};
+  if (!Array.isArray(m.hall)) m.hall = [];
+  if (m.heroesRun === undefined) m.heroesRun = 0;
+  // v1 -> v2 (Phase 7: achievement bookkeeping fields)
+  if (!Array.isArray(m.deathZones)) m.deathZones = [];
+  if (!Array.isArray(m.classesReached)) m.classesReached = [];
+  if (m.ascensionCount === undefined) m.ascensionCount = 0;
+  if (m.heroesLaidToRest === undefined) m.heroesLaidToRest = 0;
+  m.version = META_VERSION;
+  return m;
+}
+function loadMeta(){
+  try {
+    const raw = localStorage.getItem(META_KEY);
+    if (raw) return migrateMeta(JSON.parse(raw));
+  } catch(e){ console.warn("meta save unreadable", e); }
+  return defaultMeta();
+}
+function saveMeta(){ try{ localStorage.setItem(META_KEY, JSON.stringify(META)); }catch(e){} }
+
+function saveGame(){
+  if (!S) return;
+  S.lastTick = Date.now();
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }
+  catch(e){ pruneLog(S); try{ localStorage.setItem(SAVE_KEY, JSON.stringify(S)); }catch(e2){} }
+}
+function loadGame(){
+  let raw;
+  try { raw = localStorage.getItem(SAVE_KEY); } catch(e){ return null; }
+  if (!raw) return null;
+  try {
+    const s = JSON.parse(raw);
+    if (!s || !s.hero || !s.world) return null;
+    if (!RACES[s.hero.race] || !CLASSES[s.hero.cls]) return null;
+    return attachMeta(migrate(s), META);
+  } catch(e){ console.warn("hero save corrupt, starting fresh", e); return null; }
+}
+function migrate(s){
+  // Version chain lives here. Every new field needs a default AND a fallback.
+  if (s.version === undefined) s.version = 1;
+  if (s.world.bankedMs === undefined) s.world.bankedMs = 0;
+  if (!s.hero.statFrac){ s.hero.statFrac = {}; for (const k of STAT_KEYS) s.hero.statFrac[k] = 0; }
+  if (!s.world.clock) s.world.clock = s.lastTick || Date.now();
+  if (s.world.killedBy === undefined) s.world.killedBy = null;
+  if (s.world.epilogueIdx === undefined) s.world.epilogueIdx = null;
+  // v2 -> v3 (Phase 4, gear/inventory/merchant). v2 saves already carry six
+  // null gear slots and an empty inventory (declared ahead of schedule in
+  // Phase 3), so this is gentle: only the new bookkeeping fields.
+  if (!s.gear) s.gear = {weapon:null, armor:null, helm:null, gloves:null, boots:null, relic:null};
+  if (!s.inventory) s.inventory = [];
+  if (s.world.travelKind === undefined) s.world.travelKind = null;
+  if (s.stats.merchantTrips === undefined) s.stats.merchantTrips = 0;
+  // v3 -> v4 (Phase 5, classes & skills). hero.skills/classPath already
+  // existed ahead of schedule; only the new skill-runtime bookkeeping needs a
+  // fallback here.
+  if (!s.hero.skillCheatDeathQueue) s.hero.skillCheatDeathQueue = [];
+  if (!s.hero.skillState) s.hero.skillState = {};
+  // v4 -> v5 (Phase 6, story/acts/ascension). world.thread and world.act
+  // already existed as stub fields (thread always null, act always 1, since
+  // nothing before this phase ever wrote to either) — populate them for
+  // saves predating this phase rather than adding parallel fields. act can't
+  // be fixed with an undefined/null check like the others below: it was
+  // always present, just always wrong (stuck at 1) for anyone past Act I, so
+  // this has to be gated on save version instead of field presence.
+  if (!s.world.thread) s.world.thread = rollThread();
+  if (s.version < 5) s.world.act = actForLevel(s.hero.level).n;
+  if (s.world.confrontation === undefined) s.world.confrontation = null;
+  if (s.world.diedInConfrontation === undefined) s.world.diedInConfrontation = false;
+  if (s.world.ascendedAt === undefined) s.world.ascendedAt = null;
+  if (s.world.ascensionEpilogueIdx === undefined) s.world.ascensionEpilogueIdx = null;
+  // v5 -> v6 (Phase 7, meta-progression). Baked-in unlock effects live on the
+  // hero itself (see createState) — old saves predate both fields entirely.
+  if (s.hero.metaDropBonus === undefined) s.hero.metaDropBonus = 0;
+  if (s.hero.metaInvBonus === undefined) s.hero.metaInvBonus = 0;
+  s.version = SAVE_VERSION;
+  return s;
+}
+
+/* --------------------------- offline catch-up ---------------------------- */
+// Rob's call (2026-08-01): on hitting a blocking choice we BANK the unspent
+// time rather than discarding it. Resolving the choice spends the remainder,
+// and may block again at the next gate — the morning becomes a chain of
+// decisions, each followed by a burst of chronicle.
+
+let catchupBusy = false;
+
+function runCatchUp(totalMs, done){
+  if (totalMs <= 0){ done("complete", 0); return; }
+  catchupBusy = true;
+  const chunkMs = CATCHUP_BATCH * TASK_DURATION * 1000;
+  let remaining = totalMs;
+
+  function step(){
+    const offer = Math.min(chunkMs, remaining);
+    const left  = advance(S, offer);
+    remaining -= (offer - left);
+    if (left > 0){                       // blocked — hold the rest
+      S.world.bankedMs = remaining;
+      catchupBusy = false;
+      done("blocked", totalMs - remaining);
+      return;
+    }
+    if (remaining <= 0){
+      S.world.bankedMs = 0;
+      catchupBusy = false;
+      done("complete", totalMs);
+      return;
+    }
+    renderCatchupProgress(1 - remaining / totalMs, totalMs);
+    setTimeout(step, 0);
+  }
+  step();
+}
+
+function snapshot(){
+  return {level:S.hero.level, gold:S.hero.gold, zone:S.world.zone,
+          tasks:S.stats.tasksCompleted, logLen:S.log.length};
+}
+function buildSummary(before, elapsedMs){
+  const notable = S.log.slice(before.logLen).filter(e => e.imp >= 1);
+  return {
+    elapsedMs,
+    tasks: S.stats.tasksCompleted - before.tasks,
+    levelFrom: before.level, levelTo: S.hero.level,
+    gold: S.hero.gold - before.gold,
+    zoneFrom: before.zone, zoneTo: S.world.zone,
+    // Generous cap — this feeds the categorized WYWA list, not a raw dump, so
+    // it can afford to hold a full chained night's worth of notable beats.
+    notable: notable.slice(-40),
+  };
+}
+
+let pendingSummary = null;
+
+function bootCatchUp(){
+  const elapsedRaw = Date.now() - (S.lastTick || Date.now());
+  const capped = Math.min(Math.max(0, elapsedRaw), MAX_OFFLINE_HRS * 3600 * 1000);
+  const banked = S.world.bankedMs || 0;
+  S.world.bankedMs = 0;
+  const total = capped + banked;
+  if (total < 5000 || S.world.state === "DEAD" || S.world.state === "ASCENDED"){
+    S.lastTick = Date.now();
+    S.world.clock = Date.now();
+    render();
+    startLiveLoop();
+    return;
+  }
+  // Night events are stamped from the moment he was left alone, forward.
+  if (!S.world.clock || S.world.clock > S.lastTick) S.world.clock = S.lastTick;
+  const before = snapshot();
+  renderCatchupProgress(0, total);
+  runCatchUp(total, (why, spent) => {
+    S.lastTick = Date.now();
+    if (why === "complete") S.world.clock = Date.now();
+    pendingSummary = buildSummary(before, spent);
+    saveGame();
+    render();
+    startLiveLoop();
+  });
+}
+
+// Called after the player resolves a blocking choice: spend what was banked.
+function spendBanked(){
+  const banked = S.world.bankedMs || 0;
+  if (banked <= 0){ render(); return; }
+  S.world.bankedMs = 0;
+  const before = snapshot();
+  renderCatchupProgress(0, banked);
+  runCatchUp(banked, (why, spent) => {
+    S.lastTick = Date.now();
+    if (why === "complete") S.world.clock = Date.now();
+    const sum = buildSummary(before, spent);
+    // Fold into the existing card rather than replacing it, so a chain of
+    // three choices still reads as one night.
+    pendingSummary = pendingSummary ? mergeSummary(pendingSummary, sum) : sum;
+    saveGame();
+    render();
+  });
+}
+function mergeSummary(a, b){
+  return {elapsedMs: a.elapsedMs + b.elapsedMs, tasks: a.tasks + b.tasks,
+          levelFrom: a.levelFrom, levelTo: b.levelTo, gold: a.gold + b.gold,
+          zoneFrom: a.zoneFrom, zoneTo: b.zoneTo,
+          notable: a.notable.concat(b.notable).slice(-40)};
+}
+
+/* ------------------------------- live loop ------------------------------- */
+
+let liveTimer = null;
+function startLiveLoop(){
+  if (liveTimer) clearInterval(liveTimer);
+  S.lastTick = Date.now();
+  liveTimer = setInterval(tickLive, 250);
+}
+function tickLive(){
+  if (!S || catchupBusy) return;
+  const now = Date.now();
+  const dt = now - S.lastTick;
+  S.lastTick = now;
+  if (dt <= 0) return;
+  const before = S.world.state;
+  const achBefore = (S._meta && S._meta.achievements) ? S._meta.achievements.length : 0;
+  advance(S, Math.min(dt, 60000));
+  const achAfter = (S._meta && S._meta.achievements) ? S._meta.achievements.length : 0;
+  if (S.stats.tasksCompleted % 20 === 0 && S.world.taskProgressMs < 300) saveGame();
+  // An achievement firing mid-tick is worth a full render (banner + chronicle
+  // entry) immediately, not just on the next state change.
+  if (S.world.state !== before || achAfter !== achBefore) { saveGame(); render(); }
+  else renderLive();
+}
+
+/* --------------------------------- render -------------------------------- */
+
+const app = document.getElementById("app");
+const esc = s => String(s).replace(/[&<>"']/g, c =>
+  ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = n => Math.round(n).toLocaleString();
+function fmtDur(ms){
+  const h = Math.floor(ms/3600000), m = Math.round(ms%3600000/60000);
+  if (h && m) return `${h}h ${m}m`;
+  if (h) return `${h}h`;
+  return `${m}m`;
+}
+
+let activeTab = "stats";
+let metaView = null;          // null | "hall" | "achievements" — meta-scoped, outlives any hero
+let retireConfirmOpen = false;
+
+function render(){
+  if (metaView === "hall"){ renderHall(); return; }
+  if (metaView === "achievements"){ renderAchievements(); return; }
+  if (!S){ renderCreation(); return; }
+  if (retireConfirmOpen){ renderRetireConfirm(); return; }
+  if (S.world.state === "DEAD"){ renderDeath(); return; }
+  if (S.world.state === "ASCENDED"){ renderAscension(); return; }
+  if (S.world.state === "AWAITING_CHOICE" && S.world.pendingChoice){ renderChoice(); return; }
+  renderMain();
+}
+
+// Small nav row shown on both the between-heroes creation screen and the
+// live hero screen — Hall of Legends and Achievements are meta-scoped and
+// outlive any single hero, so they get their own views rather than a 5th/6th
+// tab bolted onto the hero-scoped tab bar.
+function metaNavBar(){
+  return `<div style="display:flex; justify-content:center; gap:20px; margin-bottom:14px">
+    <button class="dismiss" id="nav-hall" type="button">Hall of Legends</button>
+    <button class="dismiss" id="nav-ach" type="button">Achievements</button>
+  </div>`;
+}
+function wireMetaNav(){
+  const h = document.getElementById("nav-hall");
+  const a = document.getElementById("nav-ach");
+  if (h) h.addEventListener("click", () => { metaView = "hall"; render(); });
+  if (a) a.addEventListener("click", () => { metaView = "achievements"; render(); });
+}
+// Drains justUnlocked into a dismissible-looking (but self-clearing) card —
+// achievements should be visible immediately, not just as a chronicle line
+// the player has to go find.
+function popJustUnlockedBanner(){
+  if (!justUnlocked.length) return "";
+  const keys = justUnlocked.slice();
+  justUnlocked = [];
+  return `<div class="card wywa"><h2>Achievement${keys.length > 1 ? "s" : ""} Unlocked</h2>
+    <ul>${keys.map(k => `<li><b>${esc(ACHIEVEMENTS[k].name)}</b> — ${esc(ACHIEVEMENTS[k].reward)}</li>`).join("")}</ul>
+  </div>`;
+}
+
+function renderCatchupProgress(frac, totalMs){
+  app.innerHTML = `
+    <div class="card">
+      <h2>Catching Up</h2>
+      <p class="muted tiny">Catching up on ${esc(fmtDur(totalMs))} of adventuring…</p>
+      <div class="bar" style="margin-top:10px"><i style="width:${Math.round(frac*100)}%"></i></div>
+    </div>`;
+}
+
+function renderCreation(){
+  const races = Object.keys(RACES).filter(k => RACES[k].starter || (META.unlocks||{})[k]);
+  app.innerHTML = `
+    ${metaNavBar()}
+    ${popJustUnlockedBanner()}
+    <div class="card">
+      <h2>A New Hero</h2>
+      <p class="muted tiny">You choose his name and his blood. After that he is on his own.</p>
+      <label for="hname">Name</label>
+      <div style="display:flex; gap:8px">
+        <input type="text" id="hname" maxlength="18" autocomplete="off" spellcheck="false" style="flex:1; min-width:0">
+        <button class="btn ghost" id="rollname" type="button" style="width:auto; padding:0 14px">Roll</button>
+      </div>
+      <label>Race</label>
+      <div id="racelist">${races.map(k => `
+        <button class="pick" data-race="${k}" aria-pressed="false">
+          <b>${esc(RACES[k].name)}</b>
+          <span>${esc(modText(RACES[k].mods))} · <em>${esc(RACES[k].trait)}</em>: ${esc(RACES[k].traitText)}</span>
+        </button>`).join("")}
+      </div>
+      <button class="btn" id="begin" disabled style="margin-top:8px">Send Him Out</button>
+    </div>`;
+
+  wireMetaNav();
+  let chosen = null;
+  const nameEl = document.getElementById("hname");
+  const beginEl = document.getElementById("begin");
+  const refresh = () => { beginEl.disabled = !(chosen && nameEl.value.trim().length >= 2); };
+
+  document.getElementById("rollname").addEventListener("click", () => {
+    nameEl.value = rollHeroName(META);
+    refresh();
+  });
+  app.querySelectorAll("[data-race]").forEach(b => b.addEventListener("click", () => {
+    chosen = b.dataset.race;
+    app.querySelectorAll("[data-race]").forEach(o =>
+      o.setAttribute("aria-pressed", String(o === b)));
+    refresh();
+  }));
+  nameEl.addEventListener("input", refresh);
+  beginEl.addEventListener("click", () => {
+    // The previous hero's "While You Were Away" digest is still in
+    // pendingSummary if the player never dismissed it — and after a death it
+    // never gets dismissed, because the epilogue screen replaces the tab view.
+    // Without this, a brand-new hero opens on the dead one's overnight recap.
+    pendingSummary = null;
+    S = createState(nameEl.value.trim().slice(0,18), chosen, META);
+    META.heroesRun = (META.heroesRun || 0) + 1;
+    saveMeta();
+    saveGame();
+    render();
+    startLiveLoop();
+  });
+}
+function modText(mods){
+  const parts = STAT_KEYS.filter(k => mods[k])
+    .map(k => `${mods[k] > 0 ? "+" : ""}${mods[k]} ${k.toUpperCase()}`);
+  return parts.length === 6 ? "+1 to all stats" : parts.join(", ");
+}
+
+function renderChoice(){
+  const c = S.world.pendingChoice;
+  const banked = S.world.bankedMs || 0;
+  const isSkill = c.kind === "skill";
+  const heading = isSkill ? "A New Discipline" : "The Road Forks";
+  const prompt = isSkill
+    ? `${esc(S.hero.name)} has learned enough to refine his craft. He will not go further until he chooses.`
+    : `${esc(S.hero.name)} has reached level ${S.hero.level}. He will not go further until he chooses.`;
+  const options = c.options.map(k => {
+    if (isSkill){
+      const sk = SKILLS[k];
+      return `<button class="pick" data-opt="${k}">
+          <b>${esc(sk.name)}</b>
+          <span>${esc(sk.blurb)}</span>
+        </button>`;
+    }
+    const cl = CLASSES[k];
+    return `<button class="pick" data-opt="${k}">
+        <b>${esc(cl.name)}</b>
+        <span>${esc(cl.blurb)}<br>${esc(weightText(cl.weights))}</span>
+      </button>`;
+  }).join("");
+  app.innerHTML = `
+    <div class="modal"><div class="card">
+      <h2>${heading}</h2>
+      <p class="muted tiny" style="margin-top:0">
+        ${prompt}
+        ${banked > 5000 ? `<br><span class="gold">${esc(fmtDur(banked))} of the night is still waiting on this.</span>` : ""}
+      </p>
+      <div style="margin-top:12px">${options}</div>
+    </div></div>`;
+  app.querySelectorAll("[data-opt]").forEach(b => b.addEventListener("click", () => {
+    resolveChoice(S, b.dataset.opt);
+    saveGame();
+    spendBanked();          // chain straight into the rest of the night
+  }));
+}
+function weightText(w){
+  return STAT_KEYS.filter(k => w[k] >= 1)
+    .map(k => STAT_NAME[k]).join(" and ") + " focus";
+}
+
+function renderDeath(){
+  const h = S.hero, w = S.world, d = derived(h, S.gear);
+  const ctx = {
+    name: esc(h.name), race: esc(RACES[h.race].name), cls: esc(CLASSES[h.cls].name),
+    level: h.level, zone: esc(ZONES[w.zone-1].name),
+    killedBy: esc(w.killedBy || "Something in the dark finally caught him"),
+  };
+  const epilogue = EPILOGUES[w.epilogueIdx || 0](ctx);   // ctx already escaped — don't esc() this again
+  // Clamped: a save migrated from before birthTime moved onto the simulated
+  // clock can still hold a wall-clock birthTime and go negative.
+  const lived = Math.max(0, S.stats.deathTime - S.stats.birthTime);
+  // If this death was discovered via an offline catch-up, the WYWA digest is
+  // still sitting in pendingSummary — show it here rather than losing it,
+  // since renderDeath() is reached directly and never passes through
+  // renderMain(). No status line (the epilogue below already says how it ended).
+  const recap = pendingSummary ? summaryCard(pendingSummary, {dismiss:false, entrance:false}) : "";
+
+  app.innerHTML = `
+    ${recap}
+    <div class="card">
+      <h2>The Chronicle Ends</h2>
+      <div class="heroline">${esc(h.name)}</div>
+      <div class="herosub">Level ${h.level} ${esc(CLASSES[h.cls].name)} · ${esc(RACES[h.race].name)}
+        · fallen in ${esc(ZONES[w.zone-1].name)}</div>
+      <div class="entry imp2" style="margin-top:12px">
+        <time>${esc(fmtDur(lived))} lived</time>${epilogue}
+      </div>
+    </div>
+    <div class="card">
+      <h2>Final Statline</h2>
+      <div class="statgrid">${STAT_KEYS.map(k =>
+        `<div class="stat"><b>${STAT_NAME[k]}</b><i>${d.stats[k]}</i></div>`).join("")}</div>
+      <div class="effects" style="border-top:1px solid var(--line); padding-top:10px">
+        <div>Tasks completed &middot; ${fmt(S.stats.tasksCompleted)}</div>
+        <div>Gold earned &middot; ${fmt(S.stats.goldEarned)}</div>
+        <div>Perils survived &middot; ${fmt(S.stats.perilsSurvived)}</div>
+      </div>
+    </div>
+    <button class="btn" id="layrest">Lay Him to Rest</button>`;
+
+  document.getElementById("layrest").addEventListener("click", () => {
+    META.hall.push({
+      name: h.name, race: h.race, cls: h.cls,
+      classPath: h.classPath.map(k => (CLASSES[k] ? CLASSES[k].name : k)),
+      level: h.level, zone: w.zone,
+      hoursLived: r2(lived / 3600000), cause: w.killedBy, status: "Fallen", at: w.clock,
+    });
+    trimHall(META);
+    META.heroesLaidToRest = (META.heroesLaidToRest || 0) + 1;
+    if (META.heroesLaidToRest >= 10) unlockAchievement(META, "tenHeroesRest", null);
+    saveMeta();
+    try { localStorage.removeItem(SAVE_KEY); } catch(e){}
+    S = null;
+    render();
+  });
+}
+
+// Ascension epilogue (design doc §10) — mirrors renderDeath() exactly in
+// structure, distinct in tone: the hero survived his own ending.
+function renderAscension(){
+  const h = S.hero, w = S.world, d = derived(h, S.gear);
+  const t = w.thread || {};
+  const ctx = {
+    name: esc(h.name), race: esc(RACES[h.race].name), cls: esc(CLASSES[h.cls].name),
+    level: h.level,
+    antagonist: esc(t.antagonist || "the dark"),
+    goal: esc(t.goal || "finish what he started"),
+    doom: esc(t.doom || "the worst would have come to pass"),
+  };
+  const epilogue = ASCENSION_EPILOGUES[w.ascensionEpilogueIdx || 0](ctx);   // ctx already escaped
+  const lived = Math.max(0, (w.ascendedAt || w.clock) - S.stats.birthTime);
+  const recap = pendingSummary ? summaryCard(pendingSummary, {dismiss:false, entrance:false}) : "";
+
+  app.innerHTML = `
+    ${recap}
+    <div class="card">
+      <h2>The Chronicle Ascends</h2>
+      <div class="heroline">${esc(h.name)}</div>
+      <div class="herosub">Level ${h.level} ${esc(CLASSES[h.cls].name)} · ${esc(RACES[h.race].name)}
+        · victor over ${esc(t.antagonist || "the dark")}</div>
+      <div class="entry imp2" style="margin-top:12px">
+        <time>${esc(fmtDur(lived))} lived</time>${epilogue}
+      </div>
+    </div>
+    <div class="card">
+      <h2>Final Statline</h2>
+      <div class="statgrid">${STAT_KEYS.map(k =>
+        `<div class="stat"><b>${STAT_NAME[k]}</b><i>${d.stats[k]}</i></div>`).join("")}</div>
+      <div class="effects" style="border-top:1px solid var(--line); padding-top:10px">
+        <div>Tasks completed &middot; ${fmt(S.stats.tasksCompleted)}</div>
+        <div>Gold earned &middot; ${fmt(S.stats.goldEarned)}</div>
+        <div>Perils survived &middot; ${fmt(S.stats.perilsSurvived)}</div>
+      </div>
+    </div>
+    <button class="btn" id="ascend-rest">Enter the Hall as a Legend</button>`;
+
+  document.getElementById("ascend-rest").addEventListener("click", () => {
+    META.hall.push({
+      name: h.name, race: h.race, cls: h.cls,
+      classPath: h.classPath.map(k => (CLASSES[k] ? CLASSES[k].name : k)),
+      level: h.level, zone: w.zone,
+      hoursLived: r2(lived / 3600000), cause: `Broke ${t.antagonist || "the threat"}`, status: "Legend", at: w.clock,
+    });
+    trimHall(META);
+    saveMeta();
+    try { localStorage.removeItem(SAVE_KEY); } catch(e){}
+    S = null;
+    render();
+  });
+}
+
+// Design doc §16 open question 1, resolved yes: a living hero can be retired
+// (not killed) from the UI, behind a confirmation, and enters the Hall as
+// *Retired* — the escape hatch for a run someone's bored of.
+function renderRetireConfirm(){
+  const h = S.hero;
+  app.innerHTML = `
+    <div class="modal"><div class="card">
+      <h2>Retire ${esc(h.name)}?</h2>
+      <p class="muted tiny">He steps off the road while he still can — not a death, a choice.
+        He enters the Hall of Legends as <b>Retired</b>, and you start fresh with a new hero.</p>
+      <button class="btn" id="retire-confirm" style="margin-top:14px">Yes, Retire Him</button>
+      <button class="btn ghost" id="retire-cancel" style="margin-top:8px">Never Mind</button>
+    </div></div>`;
+  document.getElementById("retire-confirm").addEventListener("click", retireHero);
+  document.getElementById("retire-cancel").addEventListener("click", () => {
+    retireConfirmOpen = false; render();
+  });
+}
+function retireHero(){
+  const h = S.hero, w = S.world;
+  const lived = Math.max(0, w.clock - S.stats.birthTime);
+  META.hall.push({
+    name: h.name, race: h.race, cls: h.cls,
+    classPath: h.classPath.map(k => (CLASSES[k] ? CLASSES[k].name : k)),
+    level: h.level, zone: w.zone, hoursLived: r2(lived / 3600000),
+    cause: "Stepped off the road while he still could", status: "Retired", at: w.clock,
+  });
+  trimHall(META);
+  saveMeta();
+  try { localStorage.removeItem(SAVE_KEY); } catch(e){}
+  S = null;
+  retireConfirmOpen = false;
+  render();
+}
+
+// Hall of Legends — every hero who has left the road, one way or another.
+// The one place a player sees their whole history (design doc's keepsake
+// screen); newest first, capped at HALL_MAX so localStorage can't grow
+// without bound over a long-lived player.
+function renderHall(){
+  const entries = META.hall.slice().reverse();
+  const rows = entries.length
+    ? entries.map(hallRow).join("")
+    : `<div class="empty">No one has yet returned from the road, one way or another.</div>`;
+  app.innerHTML = `
+    <div class="card">
+      <h2>Hall of Legends</h2>
+      <p class="muted tiny">Every hero who has left the road — fallen, ascended, or retired.</p>
+    </div>
+    <div class="card">${rows}</div>
+    <button class="btn ghost" id="hall-back">Back</button>`;
+  document.getElementById("hall-back").addEventListener("click", () => { metaView = null; render(); });
+}
+function hallRow(e){
+  const statusColor = {Fallen: "var(--blood)", Legend: "var(--gold)", Retired: "var(--sky)"}[e.status] || "var(--ink-dim)";
+  const path = (e.classPath && e.classPath.length)
+    ? e.classPath.join(" &rarr; ")
+    : esc(CLASSES[e.cls] ? CLASSES[e.cls].name : e.cls);
+  const zoneName = ZONES[e.zone - 1] ? ZONES[e.zone - 1].name : "the road";
+  return `<div class="gearslot">
+      <b>${esc(e.name)}</b>
+      <div class="tiny muted">${esc(RACES[e.race] ? RACES[e.race].name : e.race)} &middot; ${path} &middot; Level ${e.level}</div>
+      <div class="tiny" style="margin-top:2px">${esc(e.hoursLived)}h lived &middot; last in ${esc(zoneName)}</div>
+      <div class="tiny" style="margin-top:2px; color:${statusColor}">${esc(e.status)}${e.cause ? " &middot; " + esc(e.cause) : ""}</div>
+    </div>`;
+}
+
+// Achievements — earned AND unearned shown together with their rewards, so
+// an unearned one reads as a goal to chase rather than a blank spoiler-free slot.
+function renderAchievements(){
+  const earned = new Set(META.achievements || []);
+  const rows = ACHIEVEMENT_KEYS.map(key => {
+    const a = ACHIEVEMENTS[key];
+    const got = earned.has(key);
+    return `<div class="gearslot">
+        <b style="${got ? "" : "color:var(--ink-dim)"}">${esc(a.name)}${got ? "" : " &middot; not yet"}</b>
+        <div class="tiny muted" style="margin-top:2px">${esc(a.desc)}</div>
+        <div class="tiny" style="margin-top:2px">${esc(a.reward)}</div>
+      </div>`;
+  }).join("");
+  app.innerHTML = `
+    <div class="card">
+      <h2>Achievements</h2>
+      <p class="muted tiny">${earned.size} / ${ACHIEVEMENT_KEYS.length} earned, across every hero you've sent out.</p>
+    </div>
+    <div class="card">${rows}</div>
+    <button class="btn ghost" id="ach-back">Back</button>`;
+  document.getElementById("ach-back").addEventListener("click", () => { metaView = null; render(); });
+}
+
+// Tracks the last level rendered so a real level-up (not just a re-render)
+// gets the one-shot flash. Module-level and deliberately not reset between
+// heroes — a fresh hero renders at level 1 with no prior value to exceed, so
+// no false flash fires on hero creation.
+let prevRenderedLevel = null;
+
+function renderMain(){
+  const h = S.hero, w = S.world, d = derived(h, S.gear);
+  const z = ZONES[w.zone - 1];
+  const need = xpToNext(h.level);
+  const taskFrac = w.state === "TRAVELING"
+    ? 1 - w.travelMsLeft / travelDurationMs(w.travelKind)
+    : w.taskProgressMs / d.taskMs;
+  const doing = doingText(S);
+  const leveledUp = prevRenderedLevel !== null && h.level > prevRenderedLevel;
+  prevRenderedLevel = h.level;
+
+  app.innerHTML = `
+    ${metaNavBar()}
+    ${popJustUnlockedBanner()}
+    ${pendingSummary ? summaryCard(pendingSummary, {statusHtml: heroStatusHtml()}) : ""}
+    <div class="card">
+      <div class="heroline${leveledUp ? " levelup" : ""}">${esc(h.name)}</div>
+      <div class="herosub">Level ${h.level} ${esc(CLASSES[h.cls].name)} · ${esc(RACES[h.race].name)}
+        · <span class="muted">${esc(RACES[h.race].trait)}</span></div>
+      <div class="barrow"><b>HP</b><div class="bar hp"><i id="hpbar" style="width:${pct(h.hp, d.maxHP)}"></i></div>
+        <span id="hptext">${fmt(h.hp)} / ${fmt(d.maxHP)}</span></div>
+      <div class="barrow"><b>XP</b><div class="bar xp"><i id="xpbar" style="width:${h.level>=50?100:pct(h.xp, need)}"></i></div>
+        <span id="xptext">${h.level>=50 ? "max" : "Level " + (h.level+1)}</span></div>
+      <div class="barrow"><b>Task</b><div class="bar task"><i id="taskbar" style="width:${pct(taskFrac,1)}"></i></div>
+        <span></span></div>
+      <div class="tiny muted" id="doing" style="margin-top:2px">${esc(doing)}</div>
+      <div class="footrow">
+        <span><span class="zonedot">&#9679;</span> ${esc(z.name)}</span>
+        <span class="gold" id="goldtext">${fmt(h.gold)} gold</span>
+      </div>
+    </div>
+    <div class="tabs">
+      ${["stats","skills","gear","chronicle"].map(t =>
+        `<button data-tab="${t}" aria-selected="${t===activeTab}">${t[0].toUpperCase()+t.slice(1)}</button>`).join("")}
+    </div>
+    <div class="card" id="tabbody">${tabBody()}</div>`;
+
+  wireMetaNav();
+  app.querySelectorAll("[data-tab]").forEach(b => b.addEventListener("click", () => {
+    activeTab = b.dataset.tab; render();
+  }));
+  const dis = document.getElementById("wywa-dismiss");
+  if (dis) dis.addEventListener("click", () => { pendingSummary = null; render(); });
+  const retireBtn = document.getElementById("retire-btn");
+  if (retireBtn) retireBtn.addEventListener("click", () => { retireConfirmOpen = true; render(); });
+}
+function pct(a, b){ return Math.max(0, Math.min(100, (a / b) * 100)).toFixed(1) + "%"; }
+
+// Merchant trip legs are shorter than a zone change, and the "traveling to
+// X" line doesn't apply while ferrying gear to and from town.
+function travelDurationMs(kind){
+  return (kind === "merchant_out" || kind === "merchant_return")
+    ? MERCHANT_SECONDS * 1000 : TRAVEL_SECONDS * 1000;
+}
+function doingText(S){
+  const w = S.world;
+  if (w.state === "TRAVELING"){
+    if (w.travelKind === "merchant_out") return "Making for the merchant's stall";
+    if (w.travelKind === "merchant_return") return `Returning to ${ZONES[w.zone-1].name}`;
+    return `Traveling to ${ZONES[w.pendingZone-1].name}`;
+  }
+  if (w.state === "AT_MERCHANT") return "At the merchant's stall";
+  if (w.state === "CONFRONTATION")
+    return `The final reckoning with ${w.thread.antagonist} (${w.confrontation.step + 1}/${CONFRONTATION_STEPS})`;
+  return w.taskName;
+}
+
+// Which log types are worth surfacing in the WYWA digest. "level" and
+// "travel"/"task" are deliberately excluded — level is already the headline
+// "Level X -> Y" line, travel/task are texture the tasks-completed count and
+// zone line already cover, and repeating them here would just be noise on
+// top of a card that's supposed to be the readable digest of the noise.
+const WYWA_HIDE_TYPES = new Set(["level","travel","task"]);
+
+// Small colored-dot classes shared with the chronicle's own tier/kind
+// coloring (see chronicle rendering below) so a Legendary drop or a death
+// reads the same way whether you meet it in the WYWA card or the full log.
+function entryKindClass(e){
+  if (e.type === "death") return "k-death";
+  if (e.type === "ascension") return "k-ascension";
+  if (e.type === "cheatdeath") return "k-cheatdeath";
+  if (e.type === "neardeath") return "k-neardeath";
+  if (e.type === "confrontation") return "k-confrontation";
+  if (e.type === "achievement") return "k-achievement";
+  // Every imp-2 gear entry is, by construction (see rollDrop/doMerchantTrip),
+  // an Epic or Legendary equip — never a routine one — so a text match on
+  // the tier word itemPhrase() already prepends is a safe, cheap way to
+  // recover which of the two it was without threading tier through the log.
+  if (e.type === "gear" && e.imp >= 2) return /legendary/i.test(e.text) ? "k-gear-legendary" : "k-gear-epic";
+  return "";
+}
+
+function summaryCard(s, opts){
+  opts = opts || {};
+  const lines = [];
+  lines.push(`${fmt(s.tasks)} tasks completed`);
+  if (s.levelTo > s.levelFrom) lines.push(`Level ${s.levelFrom} &rarr; <b>${s.levelTo}</b>`);
+  lines.push(`${fmt(s.gold)} gold earned`);
+  if (s.zoneTo !== s.zoneFrom) lines.push(`Traveled to ${esc(ZONES[s.zoneTo-1].name)}`);
+
+  const notable = s.notable.filter(e => !WYWA_HIDE_TYPES.has(e.type)).slice(-14);
+  const dismissBtn = opts.dismiss === false ? "" : `<button class="dismiss" id="wywa-dismiss">Dismiss</button>`;
+  const entrance = opts.entrance === false ? "" : " wywa-in";
+
+  return `<div class="card wywa${entrance}">
+    <h2>While You Were Away</h2>
+    <p class="muted tiny" style="margin:0 0 8px">${esc(fmtDur(s.elapsedMs))} on the road.</p>
+    <ul>${lines.map(l => `<li>${l}</li>`).join("")}</ul>
+    ${notable.length ? `<div class="wywa-notable">${notable.map(e =>
+        `<div class="wn-item ${entryKindClass(e)}">${esc(e.text)}</div>`).join("")}</div>` : ""}
+    ${opts.statusHtml || ""}
+    ${dismissBtn}
+  </div>`;
+}
+// "Current status: alive in [zone] at [HP%]" — the last line of the digest,
+// per design doc §3. Only meaningful while the hero is actually alive and
+// rendering the main screen; death/ascension have their own epilogue screens
+// that already say how the story ended, so they skip this line entirely.
+function heroStatusHtml(){
+  const h = S.hero, w = S.world, d = derived(h, S.gear);
+  const hpPct = Math.max(0, Math.min(100, Math.round(100 * h.hp / d.maxHP)));
+  return `<p class="wywa-status muted">Alive in ${esc(ZONES[w.zone-1].name)} at ${hpPct}% HP.</p>`;
+}
+
+// Chronicle grouping (render-only — reads existing log fields, adds/changes
+// nothing in the simulation core or save schema).
+//
+// Sessions: a real sitting at the game, inferred from a gap in the SIMULATED
+// clock between consecutive KEPT entries. During live play or an offline
+// catch-up the clock advances continuously with no such gaps between
+// consecutive log lines — except that only imp>=1 lines are kept forever
+// (pruneLog caps routine imp0 lines at LOG_ROUTINE_MAX), so late in a long
+// run — merchant trips every ~100 tasks are sometimes the only guaranteed
+// permanent anchor — two KEPT entries can legitimately be 30+ real minutes
+// apart with nothing pruned at all. The threshold has to clear that
+// natural sparsity comfortably so it only fires on an actual return visit
+// (which in practice is hours, not minutes), not on a quiet stretch of road.
+const SESSION_GAP_MS = 90 * 60 * 1000;
+function chronicleSessions(log){
+  const sessions = [];
+  let cur = null, lastT = null;
+  for (const e of log){
+    if (!cur || (lastT != null && e.t - lastT > SESSION_GAP_MS)) sessions.push(cur = {start: e.t, entries: []});
+    cur.entries.push(e);
+    lastT = e.t;
+  }
+  return sessions;
+}
+function sessionLabel(t){
+  const d = new Date(t);
+  return `${d.toLocaleDateString([], {month:"short", day:"numeric"})} — ${d.toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}`;
+}
+
+// Chapter breaks: zone arrivals ARE the act transitions (design doc §12 maps
+// one zone to one act, 5-6 folded together). ARRIVAL[] is a fixed 1-line
+// template per zone with only {name} substituted, so matching a "zone"-type
+// entry's stored text back against the 6 possibilities (for this hero's own
+// name) recovers which zone it was without threading anything new through
+// the simulation core or the save.
+const ZONE_ACT_LABEL = ["I","II","III","IV","V","V"];
+function zoneArrivalNumber(text, heroName){
+  for (const n of Object.keys(ARRIVAL))
+    if (ARRIVAL[n].replace("{name}", heroName) === text) return Number(n);
+  return null;
+}
+function entryHtml(e, heroName){
+  if (e.type === "birth" || e.type === "zone"){
+    const n = e.type === "birth" ? 1 : zoneArrivalNumber(e.text, heroName);
+    if (n){
+      const z = ZONES[n-1];
+      return `<div class="chapter">
+        <div class="chapter-rule"></div>
+        <b>Chapter ${ZONE_ACT_LABEL[n-1]} &middot; ${esc(z.name)}</b>
+        <span>${esc(e.text)}</span>
+      </div>`;
+    }
+  }
+  const kind = entryKindClass(e);
+  return `<div class="entry imp${e.imp}${kind ? " " + kind : ""}">
+    <time>${new Date(e.t).toLocaleTimeString([], {hour:"numeric", minute:"2-digit"})}</time>${esc(e.text)}
+  </div>`;
+}
+function sessionHtml(sess, heroName){
+  return `<div class="session">
+    <div class="session-head">${esc(sessionLabel(sess.start))}</div>
+    ${sess.entries.map(e => entryHtml(e, heroName)).join("")}
+  </div>`;
+}
+
+function tabBody(){
+  const h = S.hero, d = derived(h, S.gear);
+  if (activeTab === "stats"){
+    return `<h2>Statline</h2>
+      <div class="statgrid">${STAT_KEYS.map(k =>
+        `<div class="stat"><b>${STAT_NAME[k]}</b><i>${d.stats[k]}</i></div>`).join("")}</div>
+      <div class="effects">
+        <div>Task time &middot; ${(d.taskMs/1000).toFixed(1)}s</div>
+        <div>Experience &middot; &times;${d.xpMult.toFixed(2)}</div>
+        <div>Gold &middot; &times;${d.goldMult.toFixed(2)}</div>
+        <div>Evasion &middot; ${(d.evasion*100).toFixed(1)}%</div>
+        <div>Peril frequency &middot; &times;${d.perilMult.toFixed(2)}</div>
+        <div>Regeneration &middot; ${d.regenPerTask.toFixed(1)} HP per task</div>
+      </div>
+      <div class="effects" style="border-top:1px solid var(--line); padding-top:10px">
+        <div>Tasks completed &middot; ${fmt(S.stats.tasksCompleted)}</div>
+        <div>Gold earned &middot; ${fmt(S.stats.goldEarned)}</div>
+      </div>
+      <button class="btn ghost" id="retire-btn" style="margin-top:14px">Retire Hero</button>`;
+  }
+  if (activeTab === "chronicle"){
+    if (!S.log.length) return `<div class="empty">Nothing written yet.</div>`;
+    // Newest sitting on top, chronological within it — see chronicleSessions().
+    const sessions = chronicleSessions(S.log).reverse();
+    return `<h2>Chronicle</h2><div class="log">${
+      sessions.map(sess => sessionHtml(sess, h.name)).join("")}</div>`;
+  }
+  if (activeTab === "skills") return skillsTabBody();
+  return gearTabBody();
+}
+
+function skillsTabBody(){
+  const h = S.hero;
+  const path = h.classPath.map(k => (CLASSES[k] ? CLASSES[k].name : k)).join(" &rarr; ");
+  const learned = h.skills.map(k => SKILLS[k]).filter(Boolean);
+  const rows = learned.length
+    ? learned.map(sk => `<div class="gearslot">
+        <b>${esc(sk.name)}</b>
+        <div class="tiny" style="margin-top:2px">${esc(sk.blurb)}</div>
+      </div>`).join("")
+    : `<div class="empty">No skills yet — the first is offered at level 5.</div>`;
+  return `<h2>Path</h2>
+    <div class="tiny muted" style="margin-bottom:12px">${path}</div>
+    <h2>Skills</h2>
+    <div class="gearlist">${rows}</div>`;
+}
+
+function gearTabBody(){
+  const slots = SLOT_KEYS.map(slot => {
+    const item = S.gear[slot];
+    if (!item) return `<div class="gearslot">
+        <b>${cap(slot)}</b><div class="empty" style="padding:6px 0">— empty —</div>
+      </div>`;
+    const statText = STAT_KEYS.filter(k => item.stats[k])
+      .map(k => `+${item.stats[k]} ${STAT_NAME[k]}`).join(", ");
+    return `<div class="gearslot">
+        <b>${cap(slot)}</b>
+        <div class="itemname" style="color:var(--tier-${item.tier})">${esc(item.name)}</div>
+        <div class="tiny muted">${cap(item.tier)} &middot; ilvl ${item.ilvl} &middot; score ${Math.round(item.score)}</div>
+        <div class="tiny">${esc(statText)}${item.cheatDeath ? " &middot; grants a cheat-death charge" : ""}</div>
+      </div>`;
+  }).join("");
+  return `<h2>Gear</h2><div class="gearlist">${slots}</div>
+    <div class="effects" style="border-top:1px solid var(--line); padding-top:10px">
+      <div>Satchel &middot; ${S.inventory.length} / ${invSlots(S)}</div>
+      <div>Items found &middot; ${fmt(S.stats.itemsFound)}</div>
+      <div>Merchant trips &middot; ${fmt(S.stats.merchantTrips || 0)}</div>
+    </div>`;
+}
+
+// Cheap partial update on the 250ms loop: no innerHTML churn.
+function renderLive(){
+  if (!S || S.world.state === "AWAITING_CHOICE") return;
+  const h = S.hero, w = S.world, d = derived(h, S.gear);
+  const bar = document.getElementById("taskbar");
+  if (!bar) return;
+  const frac = w.state === "TRAVELING"
+    ? 1 - w.travelMsLeft / travelDurationMs(w.travelKind)
+    : w.taskProgressMs / d.taskMs;
+  bar.style.width = pct(frac, 1);
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  const setw = (id, v) => { const el = document.getElementById(id); if (el) el.style.width = v; };
+  setw("hpbar", pct(h.hp, d.maxHP));
+  set("hptext", `${fmt(h.hp)} / ${fmt(d.maxHP)}`);
+  setw("xpbar", h.level >= 50 ? "100%" : pct(h.xp, xpToNext(h.level)));
+  set("goldtext", `${fmt(h.gold)} gold`);
+  set("doing", doingText(S));
+}
+
+/* =========================== HEADLESS HARNESS ============================ */
+/* simulate(n) — no rendering, no DOM, seeded. Run this before touching any
+   balance number. Console: simulate(1000)                                    */
+
+const MILESTONES = [10, 19, 29, 37, 45, 50];
+
+function simulateOne(opts){
+  const race = opts.race || pick(Object.keys(RACES).filter(k => RACES[k].starter));
+  const s = createState("Sim", race, null);
+  const hit = {};
+  const classPick = opts.class || null;
+  let elapsed = 0;
+  const CHUNK = 600000;                       // 10 minutes of sim per step
+  const CAP = (opts.capHours || 72) * 3600000;
+
+  // Phase 6: reaching level 50 is no longer the end of the road — the hero
+  // keeps grinding zone 6 (with the merchant's guaranteed relic offer kicking
+  // in at L48+) until the ascension gate opens, fights the confrontation,
+  // and lands on DEAD or ASCENDED. So the loop must NOT stop at level 50
+  // anymore; it only stops on a real terminal/blocking state.
+  while (elapsed < CAP){
+    const left = advance(s, CHUNK);
+    elapsed += CHUNK - left;
+    for (const m of MILESTONES)
+      if (hit[m] === undefined && s.hero.level >= m) hit[m] = elapsed / 3600000;
+    if (left > 0){
+      if (s.world.state === "AWAITING_CHOICE"){
+        const o = s.world.pendingChoice.options;
+        resolveChoice(s, classPick && o.includes(classPick) ? classPick : pick(o));
+        continue;
+      }
+      break;                                  // DEAD or ASCENDED halts the loop
+    }
+  }
+  return {
+    hours: elapsed / 3600000,
+    level: s.hero.level,
+    zone: s.world.zone,
+    cls: s.hero.cls,
+    race,
+    tasks: s.stats.tasksCompleted,
+    gold: s.hero.gold,
+    itemsFound: s.stats.itemsFound,
+    merchantTrips: s.stats.merchantTrips || 0,
+    state: s.world.state,
+    // Milestone-based rather than final-state-based: a hero can reach level
+    // 50 and go on to die in the confrontation (or even to an ordinary
+    // zone-6 peril while still waiting on a relic), which would wrongly
+    // read as "never reached 50" if this were derived from the end state.
+    reached50: hit[50] !== undefined,
+    died: s.world.state === "DEAD",
+    ascended: s.world.state === "ASCENDED",
+    diedInConfrontation: s.world.state === "DEAD" && !!s.world.diedInConfrontation,
+    strandedAtCap: s.hero.level >= 50 && s.world.state === "QUESTING",
+    milestones: hit,
+  };
+}
+
+function median(a){
+  if (!a.length) return null;
+  const b = a.slice().sort((x,y) => x-y);
+  const m = b.length >> 1;
+  return b.length % 2 ? b[m] : (b[m-1] + b[m]) / 2;
+}
+const mean = a => a.length ? a.reduce((x,y) => x+y, 0) / a.length : null;
+const r2 = v => v == null ? null : Math.round(v * 100) / 100;
+
+function simulate(n, opts){
+  n = n || 1000; opts = opts || {};
+  const saved = rng;
+  rng = mulberry32(opts.seed == null ? 12345 : opts.seed);
+  const t0 = Date.now();
+  const runs = [];
+  for (let i = 0; i < n; i++) runs.push(simulateOne(opts));
+  rng = saved;
+
+  const finished = runs.filter(r => r.reached50);
+  const deaths = runs.filter(r => r.died);
+  const byMilestone = {};
+  for (const m of MILESTONES){
+    const v = runs.map(r => r.milestones[m]).filter(x => x !== undefined);
+    byMilestone["L" + m] = {medianHours: r2(median(v)), reachedPct: r2(100 * v.length / n)};
+  }
+  // Phase 5 note: byClass used to group finished runs by final `cls` directly
+  // — that broke silently once L25 forks everyone into a tier-2 class, so no
+  // survivor's final cls is ever "soldier"/"scout"/"apprentice" anymore.
+  // Group by tier-1 lineage instead (a hero who dies before L25 still counts
+  // under its own class, unforked).
+  const LINEAGE_OF = {};
+  for (const t1 of Object.keys(ADVANCED_OF)){
+    LINEAGE_OF[t1] = t1;
+    for (const t2 of ADVANCED_OF[t1]) LINEAGE_OF[t2] = t1;
+  }
+  // NOTE (Phase 6): r.hours is now TOTAL elapsed time when the run finally
+  // stopped (death or ascension), since reaching level 50 no longer halts
+  // simulateOne's loop. For "hours to 50" specifically, use the milestone
+  // timestamp captured the moment level 50 was first hit, not r.hours.
+  const byClass = {};
+  for (const c of ["soldier","scout","apprentice"]){
+    const v = finished.filter(r => LINEAGE_OF[r.cls] === c).map(r => r.milestones[50]);
+    if (v.length) byClass[c] = {n: v.length, medianHoursTo50: r2(median(v))};
+  }
+  // Advanced-class reporting so the twelve can be tuned against each other.
+  // `runs` (not just `finished`) gives us the denominator for survival rate;
+  // a hero's final `cls` is whatever tier-2 class it reached (or its
+  // tier-1/novice class if it died before L25, hence the .length guard below).
+  const byAdvancedClass = {};
+  for (const c of Object.keys(ADVANCED_OF).reduce((a,k) => a.concat(ADVANCED_OF[k]), [])){
+    const inClass = runs.filter(r => r.cls === c);
+    if (!inClass.length) continue;
+    const finishedInClass = inClass.filter(r => r.reached50);
+    byAdvancedClass[c] = {
+      n: inClass.length,
+      survivedPct: r2(100 * finishedInClass.length / inClass.length),
+      medianHoursTo50: r2(median(finishedInClass.map(r => r.milestones[50]))),
+    };
+  }
+  const deathsByZone = {};
+  for (const z of ZONES) deathsByZone[z.n] = deaths.filter(r => r.zone === z.n).length;
+
+  const ascended = runs.filter(r => r.ascended);
+  const confrontationDeaths = runs.filter(r => r.diedInConfrontation);
+  const strandedAtCap = runs.filter(r => r.strandedAtCap);
+
+  const out = {
+    heroes: n,
+    computeSeconds: r2((Date.now() - t0) / 1000),
+    medianHoursTo50: r2(median(finished.map(r => r.milestones[50]))),
+    meanHoursTo50:   r2(mean(finished.map(r => r.milestones[50]))),
+    reached50Pct:    r2(100 * finished.length / n),
+    survivedTo50Pct: r2(100 * finished.length / n),
+    medianLifespanHours: r2(median(deaths.map(r => r.hours))),
+    meanLifespanHours:   r2(mean(deaths.map(r => r.hours))),
+    deathsByZone,
+    medianLevelAtDeath:  r2(median(deaths.map(r => r.level))),
+    medianTasks:     r2(median(runs.map(r => r.tasks))),
+    medianLevel:     r2(median(runs.map(r => r.level))),
+    // Phase 4 — merchant full-heals are effectively extra lives, so these
+    // three matter for reading how far the death curve just shifted.
+    medianItemsFound:    r2(median(runs.map(r => r.itemsFound))),
+    medianMerchantTrips: r2(median(runs.map(r => r.merchantTrips))),
+    medianGoldAtDeath:   r2(median(deaths.map(r => r.gold))),
+    // Phase 6 — the confrontation. Target per design doc §10 is 5-10% of ALL
+    // heroes (not just those who reach 50) ascending.
+    ascensionRate: r2(100 * ascended.length / n),
+    deathsInConfrontation: confrontationDeaths.length,
+    // Sanity check on the merchant relic guarantee — should be 0 or very
+    // close to it. A nonzero count means some heroes reached level 50, never
+    // got an Epic+ relic, and are stuck grinding zone 6 forever.
+    strandedAtCapCount: strandedAtCap.length,
+    milestones: byMilestone,
+    byClass,
+    byAdvancedClass,
+  };
+  if (!opts.quiet) console.table(byMilestone);
+  console.table(deathsByZone);
+  if (!opts.quiet) console.table(byAdvancedClass);
+  return out;
+}
+
+/* --------------------------------- boot ---------------------------------- */
+
+META = loadMeta();
+S = loadGame();
+if (!S) render();
+else bootCatchUp();
+
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState === "hidden") saveGame();
+  else if (S && !catchupBusy) { /* returning: live loop keeps its own clock */ }
+});
+window.addEventListener("beforeunload", saveGame);
+
+// Verification surface (see project memory: verify over http://localhost, and
+// snapshot/restore state inside a SINGLE javascript_tool call).
+window.GQ = {
+  get S(){ return S; }, set S(v){ S = v; },
+  get META(){ return META; }, set META(v){ META = v; },
+  RACES, CLASSES, ZONES, PERILS, EPILOGUES, derived, effStats, advance, completeTask,
+  rollPeril, resolveChoice, xpToNext, zoneForLevel, createState, saveGame,
+  loadGame, render, logEvent, runCatchUp, spendBanked, simulateOne,
+  TIERS, SLOT_KEYS, generateItem, equipItem, rollDrop, beginMerchantTrip,
+  doMerchantTrip,
+  SKILLS, SKILL_POOLS, ADVANCED_OF, SKILL_LEVELS, skillAgg, grantSkill,
+  rollSkillOptions, checkTriggers,
+  // Phase 6 — story, acts, ascension.
+  ACTS, actForLevel, MINOR_BEAT_LEVELS, ANTAGONIST_TYPES, ANTAGONIST_TYPE_KEYS,
+  rollAntagonistName, rollThread, fillTemplate, threadVars,
+  ACT_MAJOR, ACT_MINOR, CONFRONTATION_STEPS, CONFRONTATION_ANNOUNCE,
+  CONFRONTATION_SEQUENCE, CONFRONTATION_PERILS, ASCENSION_LINES, ASCENSION_EPILOGUES,
+  hasEpicOrBetterRelic, beginConfrontation, completeConfrontationStep,
+  rollConfrontationPeril, renderAscension, renderDeath,
+  // Phase 7 — meta-progression, achievements, Hall of Legends.
+  ACHIEVEMENTS, ACHIEVEMENT_KEYS, unlockAchievement, onHeroDeath, checkFullRareSet,
+  attachMeta, invSlots, HALL_MAX, trimHall, NAME_FIRST, NAME_ANCIENT, NAME_TITLES,
+  rollHeroName, defaultMeta, migrateMeta, loadMeta, saveMeta, retireHero,
+  renderHall, renderAchievements, renderRetireConfirm,
+  get metaView(){ return metaView; }, set metaView(v){ metaView = v; },
+  get retireConfirmOpen(){ return retireConfirmOpen; }, set retireConfirmOpen(v){ retireConfirmOpen = v; },
+  get justUnlocked(){ return justUnlocked; },
+  setSeed(seed){ rng = mulberry32(seed); },
+  useRandom(){ rng = Math.random; },
+};
+window.simulate = simulate;
+window.BALANCE = BALANCE;
+
+/**
+ * Grid-search the balance knobs. sweep({gearBudget:[.15,.2], regenConDiv:[40,Infinity]}, 400)
+ * runs simulate(n) for every combination and returns the headline metrics for
+ * each, restoring BALANCE afterward. This is how balance changes get made —
+ * never by reasoning about the formulas alone.
+ */
+function sweep(grid, n){
+  n = n || 400;
+  const keys = Object.keys(grid);
+  const saved = {}; for (const k of keys) saved[k] = BALANCE[k];
+  const combos = keys.reduce((acc, k) =>
+    acc.flatMap(base => grid[k].map(v => Object.assign({}, base, {[k]: v}))), [{}]);
+  const rows = [];
+  for (const combo of combos){
+    Object.assign(BALANCE, combo);
+    const r = simulate(n, {quiet: true});
+    rows.push(Object.assign({}, combo, {
+      medianLifespanH: r.medianLifespanHours,
+      survivedTo50Pct: r.survivedTo50Pct,
+      medLevelAtDeath: r.medianLevelAtDeath,
+      deathsByZone: r.deathsByZone,
+      medHoursTo50: r.medianHoursTo50,
+    }));
+  }
+  Object.assign(BALANCE, saved);
+  console.table(rows.map(r => { const {deathsByZone, ...rest} = r; return rest; }));
+  return rows;
+}
+window.sweep = sweep;
+</script>
