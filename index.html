@@ -125,6 +125,11 @@ h1,h2,h3{font-family:Cinzel,Georgia,serif; font-weight:700; margin:0}
 .entry.k-achievement{border-left-color:var(--gold-lit); color:var(--gold-lit)}
 .entry.k-gear-epic{border-left-color:var(--tier-epic); color:var(--tier-epic)}
 .entry.k-gear-legendary{border-left-color:var(--tier-legendary); color:var(--tier-legendary)}
+/* graves & heirlooms (persistent world) — an elegiac beat gets the same
+   blood accent as death/cheat-death (it IS a death, just not this hero's);
+   a recovered heirloom is a loot moment, so it reads like k-achievement. */
+.entry.k-grave{border-left-color:var(--blood)}
+.entry.k-heirloom{border-left-color:var(--gold-lit); color:var(--gold-lit)}
 
 /* buttons + choices */
 .btn{display:block; width:100%; font:inherit; font-size:15px; padding:13px; cursor:pointer;
@@ -171,8 +176,8 @@ input[type=text]:focus{outline:none; border-color:var(--gold)}
   overflow-wrap:anywhere}
 .wn-item::before{content:""; position:absolute; left:0; top:.55em; width:5px; height:5px;
   border-radius:50%; background:var(--ink-mute)}
-.wn-item.k-death::before, .wn-item.k-cheatdeath::before, .wn-item.k-confrontation::before, .wn-item.k-neardeath::before{background:var(--blood)}
-.wn-item.k-ascension::before, .wn-item.k-achievement::before{background:var(--gold-lit)}
+.wn-item.k-death::before, .wn-item.k-cheatdeath::before, .wn-item.k-confrontation::before, .wn-item.k-neardeath::before, .wn-item.k-grave::before{background:var(--blood)}
+.wn-item.k-ascension::before, .wn-item.k-achievement::before, .wn-item.k-heirloom::before{background:var(--gold-lit)}
 .wn-item.k-gear-epic::before{background:var(--tier-epic)}
 .wn-item.k-gear-legendary::before{background:var(--tier-legendary)}
 .wywa-status{margin:10px 0 0; padding-top:9px; border-top:1px solid var(--line); font-size:13px}
@@ -244,8 +249,8 @@ html, body{overflow-x:hidden; max-width:100%}
 
 const SAVE_KEY = "goquest_hero";
 const META_KEY = "goquest_meta";
-const SAVE_VERSION = 6;
-const META_VERSION = 2;
+const SAVE_VERSION = 8;
+const META_VERSION = 3;
 
 const TASK_DURATION   = 25;      // seconds, before STR reduction
 const TRAVEL_SECONDS  = 90;      // zone change
@@ -703,6 +708,31 @@ const CHEATDEATH_LINES = [
   "The dark takes {name} and then, impossibly, lets go — survival, on a single breath.",
 ];
 
+// Graves & heirlooms (persistent world, 2026-08-03 brief). A fallen hero's
+// grave is recorded into goquest_meta (see renderDeath's "Lay Them to Rest"
+// handler) and a LATER hero questing through the same zone can stumble onto
+// it — see rollGraveDiscovery(). {article}/{race}/{cls}/{level}/{cause} come
+// from graveVars(); {finder} is whichever hero is reading the marker now.
+// Deliberately no gendered pronoun anywhere in here — singular "they" only.
+const GRAVE_EPITAPHS = [
+  "A cairn of fieldstones marks the spot, half-sunk, half-forgotten. {finder} reads what's carved there: {name}, {article} {race} {cls}, level {level}. {cause}. No one came to add a stone in all this time, until now.",
+  "The marker is small, easy to miss — exactly the kind of grave a hero leaves who dies far from anyone keeping count. {name}, level {level}, {article} {race} {cls}. {cause}. {finder} stands over it longer than the moment strictly requires.",
+  "Something here remembers {name} even if no living soul does — {article} {race} {cls} who reached level {level} and then stopped. {cause}. {finder} leaves the ground as it was found, and carries the name onward anyway.",
+  "{finder} finds the grave before understanding what it is: a name half-worn off a marker, {name}, {article} {race} {cls}, level {level}. {cause}. The road doesn't explain itself. It just goes on, the way it's going on now.",
+  "Not every ending gets a monument. This one got a mound of stones and a name someone bothered to carve — {name}, level {level}, {article} {race} {cls}. {cause}. {finder} says the name aloud, once, before moving on.",
+  "There's a grave here that predates {finder}'s own road by however long it takes a story to become a rumor and a rumor to become nothing at all. {name}, {article} {race} {cls}, level {level}. {cause}. Someone should have remembered sooner. {finder} remembers now.",
+];
+
+// {owner} is the item's true owner tag (see GRAVE_HEIRLOOM_ownership note at
+// generateHeirloom()) — usually the grave's hero, but can be an even earlier
+// name if this heirloom has already changed hands once before.
+const GRAVE_HEIRLOOM_LINES = [
+  "{finder} finds it half-buried beside the marker — {owner}'s {itemName}, still whole after all this time. It settles into the hand like it always meant to end up there.",
+  "There's more than a name at the grave. {finder} pulls {owner}'s {itemName} free of the dirt, and for a moment the road feels less lonely than it did a minute ago.",
+  "{owner}'s {itemName} lies where it fell, untouched until now. {finder} takes it up — not as loot, but as something owed.",
+  "The grave gives up one more thing before {finder} leaves it: {owner}'s {itemName}, ready to be carried again.",
+];
+
 // Epilogue templates for the death screen. ctx fields arrive pre-escaped.
 const aOrAn = w => /^[aeiou]/i.test(w) ? "an" : "a";
 const cap = s => s[0].toUpperCase() + s.slice(1);
@@ -1011,7 +1041,9 @@ const ACT_MINOR = {
   3: [
     "In the Barrows' flooded dark, {name} finds {sign}. Whatever did this didn't hide it — didn't need to.",
     "{name} reads it in stone, in water-stained parchment, in the shape of the dead themselves: {sign}.",
-    "The deeper {name} goes, the less anyone bothers to whisper about it. {sign}, and nobody blinks anymore.",
+    // Em dash, not a period — {sign} substitutes a lowercase phrase, so a
+    // sentence break here reads as "... about it. a shadow that falls ...".
+    "The deeper {name} goes, the less anyone bothers to whisper about it — {sign}, and nobody blinks anymore.",
     "{name} stops being surprised somewhere around {sign}. {name} keeps count anyway.",
   ],
   4: [
@@ -1027,6 +1059,481 @@ const ACT_MINOR = {
     "{name} reads {sign} like a countdown. There aren't many numbers left.",
   ],
 };
+
+/* ------------------------- antagonist on-screen beats ---------------------- */
+// Rob's brief (2026-08-03): two measured gaps — every blocking choice was a
+// stat pick (nothing asked who the hero IS), and ~89% of heroes never meet
+// the antagonist because only ~11% reach the level-50 confrontation. This
+// section is both fixes: narrative dilemma gates (prose choices that set a
+// flag on S.world.flags), and antagonist encounters that put the villain on
+// screen well before Act V for everyone, not just survivors.
+
+// Levels chosen to collide with NO existing gate (class 10/25, skill
+// 5/15/20/30/35/40/45/50) — MINOR_BEAT_LEVELS already owns 17/27/38 too, so
+// those levels fire a minor "sign" beat immediately followed by the blocking
+// dilemma. That reads fine (a small omen, then the actual choice) and wasn't
+// worth reshuffling an existing, tuned cadence to avoid.
+const DILEMMA_LEVELS = [7, 17, 27, 38, 47];
+const DILEMMA_LEVEL_KEY = {7:"village", 17:"rival", 27:"shortcut", 38:"wastes", 47:"edge"};
+
+// Acts II/III get a non-blocking "witnessed directly" beat — a lieutenant,
+// a herald, the aftermath of something — thread-typed like ACT_MAJOR, at
+// levels that don't collide with MINOR_BEAT_LEVELS (12/14/17 and 21/24/27)
+// either, so this reads as its own distinct beat rather than a duplicate sign.
+const ANTAGONIST_ENCOUNTER_LEVEL_ACT = {13: 2, 23: 3};
+
+// Act IV's costly failed encounter fires once, guarded by
+// S.world.act4FailureDone. Level 32 sits clear of every existing gate
+// (class/skill/dilemma) and MINOR_BEAT_LEVELS' 31/33/36.
+const ACT4_FAILURE_LEVEL = 32;
+
+/* ------------------------------ shared helpers ----------------------------- */
+
+// A peril-shaped HP delta (same percentage-of-a-level-typical-pool math as
+// rollPeril/refHP) that can never itself cause DEAD — a dilemma or a scripted
+// story beat shouldn't end the chronicle on a screen the player didn't see
+// coming as danger. Floors at 1 HP and fires the same near-death crossing log
+// line rollPeril() does, so a dilemma that hurts reads exactly like a peril
+// that hurts everywhere else in the chronicle.
+function applyHpFrac(S, frac){
+  const h = S.hero, d = derived(h, S.gear);
+  const wasSafe = h.hp / d.maxHP >= 0.20;
+  const delta = Math.round(d.maxHP * frac);
+  h.hp = Math.max(1, Math.min(d.maxHP, h.hp + delta));
+  if (wasSafe && h.hp / d.maxHP < 0.20)
+    logEvent(S, "neardeath", `${h.name} is barely standing. HP critical.`, 1);
+  return delta;
+}
+// A lingering scar (or, sometimes, a callus) — a small PERMANENT shift to a
+// base stat, same category of write as allocateStats()/race mods, not a
+// derived()-layer effect. Floored at 1 so a bad roll can't zero a stat out.
+function applyStatScar(S, stat, amount){
+  S.hero.stats[stat] = Math.max(1, S.hero.stats[stat] + amount);
+}
+// A temporary boon that decays by TASKS COMPLETED, not clock time, so it
+// means the same thing whether the hero is played live or caught up offline
+// in one burst. Folded into effStats()/derived() via boonAgg() below, same
+// effect-kind vocabulary SKILLS already uses. Decremented in decayBoons(),
+// called once per completed task (see completeTask()).
+function grantBoon(S, key, tasks, effect){
+  S.hero.boons = S.hero.boons || [];
+  S.hero.boons.push({key, tasksLeft: tasks, effect});
+}
+function decayBoons(S){
+  const h = S.hero;
+  if (!h.boons || !h.boons.length) return;
+  h.boons = h.boons.filter(b => --b.tasksLeft > 0);
+}
+// Aggregates hero.boons the same way skillAgg() aggregates hero.skills.
+// Kept as a separate small object (rather than folded into skillAgg itself)
+// because boons are transient game-state, not permanent character build —
+// keeping the two aggregations separate means a boon can never accidentally
+// leak into anything that reads hero.skills directly.
+function boonAgg(hero){
+  const agg = {stat:{}, xpMult:1, goldMult:1, taskSpeedMult:1, mitigation:0, evasion:0};
+  for (const k of STAT_KEYS) agg.stat[k] = 0;
+  for (const b of (hero.boons || [])){
+    const e = b.effect;
+    if (!e) continue;
+    switch (e.kind){
+      case "stat": agg.stat[e.stat] += e.amount; break;
+      case "mult":
+        if (e.target === "xp") agg.xpMult += e.amount;
+        else if (e.target === "gold") agg.goldMult += e.amount;
+        break;
+      case "mitigation": agg.mitigation += e.amount; break;
+      case "evasion": agg.evasion += e.amount; break;
+      case "taskSpeed": agg.taskSpeedMult -= e.amount; break;
+    }
+  }
+  agg.taskSpeedMult = Math.max(BALANCE.skillTaskSpeedFloor, agg.taskSpeedMult);
+  return agg;
+}
+
+/* -------------------------------- dilemmas ---------------------------------- */
+// Each dilemma: 3-4 prose `variants` for the situation (one rolled once, at
+// the moment the gate fires, and stored as a stable index on pendingChoice —
+// same pattern as w.epilogueIdx), and an `options` map keyed by option key.
+// Each option's apply(S) mutates state directly (gold/hp/stats/flags/gear/
+// boons), logs the resolution line itself, and returns a delay in ms (0 if
+// none) — resolveChoice() reads that return value to decide whether to
+// route through the "dilemma_delay" travel state (see finishChoice()/
+// arriveAfterDilemmaDelay()) so a costly choice actually costs simulated
+// time, consumed through the normal advance() ms-budget like everything else.
+//
+// Consequences are deliberately small relative to the run (stat shifts of
+// 1-3, gold in the tens, HP in single-digit percent, boons lasting a handful
+// of tasks) — real, but sidegrades, not upgrades. See CLAUDE.md: report the
+// balance delta, don't correct it.
+const DILEMMAS = {
+  village: {
+    title: "Smoke on the Road",
+    variants: [
+      "Smoke is still rising from a village on {name}'s road when they reach it — not home, not really, just a place that used to have a name people said without flinching. Half the roofs are gone. The well still works. Someone is crying without much strength left to do it properly.",
+      "{name} finds the village before the smoke has finished clearing — raiders, or fire, or both, and it hardly matters which now. What matters is the woman digging at a collapsed wall with her bare hands, and the fact that {name} is the only one who arrived able to help.",
+      "The road runs straight through what's left of a village, and there's no way around it that doesn't cost more time than going through. People move slowly in the wreckage, doing the small useless things grief makes you do before the real work starts.",
+      "A village that had a market day scheduled for this week instead has bodies laid out under whatever cloth could be found, and a handful of people still capable of standing who look at {name} like the road just delivered exactly what they needed and didn't ask for.",
+    ],
+    options: {
+      help: {
+        label: "Stay and dig",
+        desc: "Hours lost to it, but hands are hands.",
+        apply(S){
+          const delay = randInt(28, 42) * 60000;
+          applyStatScar(S, "con", 1);
+          S.world.flags.village = "helped";
+          logEvent(S, "dilemma", `${S.hero.name} spends the better part of the day hauling wreckage and carrying water. Nobody here has coin to spare, and nobody offers. ${S.hero.name} moves on eventually, muscle sore, road time gone, and something in the doing of it settles like calluses.`, 2);
+          return delay;
+        },
+      },
+      pressOn: {
+        label: "Keep to the road",
+        desc: "The dead don't need company, and the living have their own to give it.",
+        apply(S){
+          S.world.flags.village = "passed";
+          logEvent(S, "dilemma", `${S.hero.name} keeps walking. It isn't unkindness, exactly — there's a place to be, and grief was already spoken for by people who knew these names. The village shrinks behind them and doesn't call out.`, 2);
+          return 0;
+        },
+      },
+      mercenary: {
+        label: "Help, and name a price",
+        desc: "Labor is labor. Even here.",
+        apply(S){
+          const delay = randInt(10, 18) * 60000;
+          const paid = randInt(25, 45);
+          S.hero.gold += paid;
+          S.world.flags.village = "mercenary";
+          logEvent(S, "dilemma", `${S.hero.name} works until the worst of it is cleared, then names a price. Someone pays it, scraped together from somewhere they shouldn't have had to reach. ${S.hero.name} takes the ${paid} gold. It buys something. It costs something too, though ${S.hero.name} couldn't say exactly what.`, 2);
+          return delay;
+        },
+      },
+    },
+  },
+
+  rival: {
+    title: "A Message, If It's Wanted",
+    variants: [
+      "{name} finds another traveler dying under a Thornwood oak — someone who's clearly been on this road a while, reading by the calluses and the good boots gone bad. Whatever put them down did its job thoroughly. There's still time for a few words, if {name} wants to hear them.",
+      "The stranger bleeding out against a tree recognizes {name} before {name} recognizes them — a rival from some town behind, on the same road for the same reasons, a lifetime ahead in the wrong direction. \"Didn't think I'd lose the race like this,\" they manage.",
+      "{name} isn't the one who did this — whatever hunted this traveler down is long gone — but {name} is the one who arrives while there's still a person there to arrive for. They're holding something. They want it to matter that someone carries it on.",
+      "There's a dying stranger on the Thornwood road who has clearly been walking the same path {name} is walking, chasing the same rumors, weeks or months ahead. Not anymore. They have one thing left to ask, and not much breath left to ask it with.",
+    ],
+    options: {
+      carry: {
+        label: "Take the message",
+        desc: "Whatever it costs to carry, it costs less than leaving it behind.",
+        apply(S){
+          const h = S.hero;
+          const delay = randInt(25, 35) * 60000;
+          applyStatScar(S, "wis", 1);
+          S.world.flags.rival = "carried";
+          const item = generateItem(S.world.zone, null, false, 0);
+          item.name = "Keepsake of a Nameless Rival";
+          S.inventory.push(item);
+          logEvent(S, "dilemma", `${h.name} stays until it's over and takes what's left — a name, an address, a handful of words meant for someone who'll never know how close they came to not hearing them. It isn't much weight to carry. It carries anyway.`, 2);
+          return delay;
+        },
+      },
+      rob: {
+        label: "Take what they won't need",
+        desc: "The dead don't need a purse.",
+        apply(S){
+          const h = S.hero;
+          const taken = randInt(20, 40);
+          h.gold += taken;
+          applyStatScar(S, "cha", -1);
+          S.world.flags.rival = "robbed";
+          logEvent(S, "dilemma", `${h.name} doesn't wait for the end. There's a purse, and boots better than the ones ${h.name}'s wearing, and no one left who'll ever ask what happened to either. ${taken} gold, easy come. It's the easy part that stays.`, 2);
+          return 0;
+        },
+      },
+    },
+  },
+
+  shortcut: {
+    title: "The Voice Under the Water",
+    variants: [
+      "Something in the flooded dark of the Barrows knows a way through that isn't on any map {name} carries — knows it, and offers it, in a voice that comes from everywhere the lantern-light doesn't reach. It only wants one small thing in trade.",
+      "{name} isn't alone in the drowned nave, though nothing is visibly there. It speaks in the space between the drips. It knows a stair that will cut hours off the dark. It only asks for a name — not {name}'s, just any name {name} is willing to give up remembering.",
+      "The presence in the Barrows doesn't threaten. It negotiates. It has watched a great many people try to cross this ground the slow way, and it is offering, sincerely, to make {name}'s crossing shorter — for a price small enough to sound reasonable in the dark.",
+      "Something old and patient in the Barrows' lower halls offers {name} the one thing that's actually scarce down here: time. All it wants back is something {name} probably won't miss. Probably.",
+    ],
+    options: {
+      take: {
+        label: "Take the shortcut",
+        desc: "It's asking for less than it could.",
+        apply(S){
+          const h = S.hero;
+          applyStatScar(S, "int", -2);
+          S.world.flags.shortcut = "took";
+          logEvent(S, "dilemma", `${h.name} takes the offer, and the stair is exactly where the voice said it would be. Something goes quiet on the way through — a name, gone missing from where ${h.name} used to keep it, and no amount of trying calls it back.`, 2);
+          return 0;
+        },
+      },
+      decline: {
+        label: "Find the way yourself",
+        desc: "Whatever it wants, it isn't nothing.",
+        apply(S){
+          const h = S.hero;
+          const delay = randInt(35, 50) * 60000;
+          h.cheatDeathCharges = (h.cheatDeathCharges || 0) + 1;
+          S.world.flags.shortcut = "declined";
+          logEvent(S, "dilemma", `${h.name} declines and takes the long way, the slow way, the way that costs hours instead of whatever the voice was really asking for. Something about the refusal seems to please the dark, in its own fashion — a ward settles over ${h.name} that wasn't there a moment ago.`, 2);
+          return delay;
+        },
+      },
+    },
+  },
+
+  wastes: {
+    title: "Ash and a Stranger",
+    variants: [
+      "There's someone half-buried in the ash of the Wastes, alive, barely, canteen long since empty. {name} could spare water. {name} could spare time. The Wastes don't forgive spending either one carelessly.",
+      "{name} finds a stranger sitting very still in the Ashen Wastes, the particular stillness of someone conserving the last of something. They don't ask for help. They also don't get up.",
+      "A figure in the ash flags {name} down from a distance that took real effort to cover, given the state they're in. Whatever brought them out here alone didn't go well, and the Wastes aren't a place that gives second chances freely.",
+      "The stranger in the Wastes has a route marked on a scrap of hide — someplace worth reaching, if the marks can be trusted, if the stranger can be trusted, if there's enough left of them to trust at all. They'll trade the route for help getting up.",
+    ],
+    options: {
+      help: {
+        label: "Share water, slow down",
+        desc: "It costs strength {name} might want later.",
+        apply(S){
+          const h = S.hero;
+          applyHpFrac(S, -0.10);
+          const delay = randInt(25, 40) * 60000;
+          grantBoon(S, "waste_guide", 14, {kind:"evasion", amount:0.05});
+          S.world.flags.wastes = "helped";
+          logEvent(S, "dilemma", `${h.name} shares what there is to share and walks slower than the Wastes reward for a while. In return, the stranger's scratched route turns out to be real — ${h.name} reads the ground differently for a stretch of road afterward, the way a trick works once someone's actually shown it to you.`, 2);
+          return delay;
+        },
+      },
+      rob: {
+        label: "Take their water, leave the rest",
+        desc: "They won't be needing it long either way.",
+        apply(S){
+          const h = S.hero;
+          applyStatScar(S, "con", -1);
+          S.world.flags.wastes = "robbed";
+          logEvent(S, "dilemma", `${h.name} takes the canteen. It isn't much, but the Wastes make even a little water worth something. ${h.name} doesn't look back to see how much longer the stranger lasts.`, 2);
+          return 0;
+        },
+      },
+      leave: {
+        label: "Walk on",
+        desc: "Not every stranger in the ash is {name}'s to save.",
+        apply(S){
+          const h = S.hero;
+          S.world.flags.wastes = "left";
+          logEvent(S, "dilemma", `${h.name} walks on. The Wastes take a great many people who never had anyone stop for them, and ${h.name} can't be the answer to all of it. The figure gets smaller, then gone.`, 2);
+          return 0;
+        },
+      },
+    },
+  },
+
+  edge: {
+    title: "One Edge, Offered",
+    variants: [
+      "Something finds {name} on the last stretch before {antagonist} — patient, old, and entirely willing to make this easier, for a price it doesn't bother disguising as generosity.",
+      "There's an offer waiting on the road to {antagonist}, made by something that clearly has a stake in how this ends. It isn't subtle about what it wants in return.",
+      "{name} is offered an edge, this close to {antagonist} — real power, real advantage, the kind that could be the difference between a story that ends and one that doesn't. It only asks {name} to stop being quite so particular about the cost.",
+      "Whatever waits ahead with {antagonist} is not going to fight fair. Something on the road offers {name} the same courtesy, if {name} is willing to take it.",
+    ],
+    options: {
+      accept: {
+        label: "Take the edge",
+        desc: "{antagonist} certainly won't fight clean.",
+        apply(S){
+          const h = S.hero;
+          applyStatScar(S, "con", -2);
+          grantBoon(S, "dark_edge", 30, {kind:"mitigation", amount:0.08});
+          S.world.flags.edge = "accepted";
+          logEvent(S, "dilemma", fillTemplate(`${h.name} takes what's offered, and it works — the kind of advantage that reads as real backing off the ledge, which alone makes it worth the price. What it costs doesn't show up all at once. It shows up in what ${h.name}'s hands look like afterward, in the parts of the road ${h.name} can't quite remember.`, threadVars(S)), 2);
+          return 0;
+        },
+      },
+      refuse: {
+        label: "Refuse it",
+        desc: "Whatever {name} carries into this, it should be {name}'s own.",
+        apply(S){
+          const h = S.hero;
+          applyStatScar(S, "wis", 1);
+          S.world.flags.edge = "refused";
+          logEvent(S, "dilemma", fillTemplate(`${h.name} refuses, and whatever offered it doesn't argue — just goes still, the way patient things do when they're used to waiting. ${h.name} walks on with nothing but what was already earned. It will have to be enough.`, threadVars(S)), 2);
+          return 0;
+        },
+      },
+    },
+  },
+};
+
+function beginDilemma(S, key){
+  const dil = DILEMMAS[key];
+  const variantIdx = randInt(0, dil.variants.length - 1);
+  S.world.pendingChoice = {kind:"dilemma", dilemmaKey:key, variantIdx,
+                            options: Object.keys(dil.options)};
+  S.world.state = "AWAITING_CHOICE";
+  logEvent(S, "dilemma", fillTemplate(dil.variants[variantIdx], threadVars(S)), 2);
+}
+
+/* ----------------------- antagonist on-screen encounters -------------------- */
+// Acts II/III: non-blocking, thread-typed, witnessed directly rather than
+// heard about secondhand — a lieutenant, a herald, the aftermath of
+// something. Two variants per antagonist type per act keeps this from
+// repeating inside one run while staying a manageable amount of prose.
+const ANTAGONIST_ENCOUNTER = {
+  2: {
+    lich: [
+      "A rider in grey finds {name} on the Thornwood road — not {antagonist}, but close enough to matter, close enough that {name} can feel how deliberately {antagonist} chose this messenger. The message: turn back, or don't. It makes no difference to the ledger.",
+      "{name} watches a procession pass at a distance — {antagonist}'s own, unmistakably, led by something that used to be a person and now moves like a held breath. It doesn't stop. It doesn't need to.",
+    ],
+    tyrant: [
+      "{antagonist}'s herald reads a proclamation in the Thornwood's one remaining market square, and {name} stands close enough to watch faces in the crowd decide, one by one, not to react.",
+      "{name} sees {antagonist}'s colors up close for the first time — a garrison captain who makes the introduction like a formality, the way a hand introduces itself just before it closes.",
+    ],
+    dragon: [
+      "{name} watches something pass low overhead in the Thornwood, wingspan enough to blot out a stretch of sky, gone before there's time to be properly afraid of it. {antagonist}, unmistakably.",
+      "A scouting party finds what's left of a hunting camp {antagonist} passed over, and {name} arrives close enough behind to still smell it burning.",
+    ],
+    plague: [
+      "{name} meets a physician fleeing the Thornwood ahead of {antagonist}, still carrying a case of instruments that clearly won't help anymore. She talks about it like weather. She isn't wrong to.",
+      "{name} watches a Thornwood hamlet empty out in under a day, everyone moving with the specific hurry of people who've seen exactly what {antagonist} does and aren't waiting to see it twice.",
+    ],
+    god: [
+      "{name} stands in a Thornwood chapel at the exact moment every candle gutters at once, and understands, without anyone saying so, that {antagonist} just noticed the building existed.",
+      "A hedge-priest shows {name} a shadow that fell the wrong direction for eleven straight days before correcting itself. {antagonist}'s doing, probably. Nobody local wants to say probably out loud.",
+    ],
+  },
+  3: {
+    lich: [
+      "{name} comes face to face with something {antagonist} sent personally into the Barrows — not the master, but wearing enough of its authority to make the difference academic. It doesn't fight. It delivers a message and leaves {name} standing in a room that's colder for the visit.",
+      "In the Barrows' deepest gallery, {name} finds {antagonist}'s own herald mid-errand — cataloguing the dead, unbothered, entirely willing to explain the process if asked. {name} doesn't ask.",
+    ],
+    tyrant: [
+      "{antagonist}'s second-in-command meets {name} in the Barrows' upper halls to deliver terms that were never actually negotiable, and makes clear, politely, that {name} isn't important enough yet to be killed over refusing them.",
+      "{name} watches {antagonist}'s war council through a gap in a collapsed wall — maps, names, dates — close enough to hear every word and nowhere near close enough to do anything about any of it.",
+    ],
+    dragon: [
+      "Something {antagonist} sent ahead meets {name} in the Barrows' lower vault — smaller, but plainly of the same blood, and plainly under orders. It watches {name} the whole time it's speaking, the way a larger thing watches something it hasn't decided is prey yet.",
+      "{name} finds scorch marks in the Barrows that shouldn't be possible this deep underground, and understands {antagonist}'s reach goes exactly as far as it wants to.",
+    ],
+    plague: [
+      "{name} meets someone {antagonist} has already half-claimed, still walking, still talking, entirely aware of what's happening to them and entirely calm about it. The calm is the worst part.",
+      "The Barrows' lower level holds a message from {antagonist} written in something {name} decides not to look at too closely. It doesn't need to be clever. It only needs to be seen.",
+    ],
+    god: [
+      "{name} meets something in the Barrows that speaks with {antagonist}'s certainty but none of its patience — an aspect, a fragment, enough of it to make the difference feel irrelevant.",
+      "A shrine in the Barrows answers a prayer {name} didn't make, in a voice that isn't {antagonist} exactly but knows {antagonist} well enough to borrow its authority for the length of one sentence.",
+    ],
+  },
+};
+
+/* -------------------------- the Act IV failed encounter --------------------- */
+// The single most important piece of this brief: the hero meets the
+// antagonist's real weight head-on, once, in Act IV, and loses. Survives,
+// but pays — gear destroyed, a cheat-death charge burned, a heavy HP cost,
+// or (if there's nothing else left to take) a story flag's payoff undone.
+// This is what gives the ~90% of runs that end in ordinary death a shape:
+// met the enemy, lost something, kept going anyway — instead of "was killed
+// by a peril in zone 6."
+const ACT4_FAILURE = {
+  lich: [
+    "In Emberfall's cinder-lit dark, {antagonist} doesn't send a servant this time — comes close enough for {name} to see exactly what six centuries does to a face. It isn't a fight so much as a correction.",
+    "{name} finds {antagonist} waiting at the heart of a forge no one's lit in years, and understands too late that finding was the point — {antagonist} wanted to be found, wanted to show {name} exactly how outmatched this still is.",
+  ],
+  tyrant: [
+    "{antagonist}'s personal guard finds {name} first in Emberfall, and {antagonist} arrives in person to watch what happens next, the way a landlord watches a debt get collected.",
+    "{name} walks into what should have been a routine skirmish and finds {antagonist} already there, already winning, already treating the whole exchange as a formality.",
+  ],
+  dragon: [
+    "{antagonist} doesn't need the element of surprise in Emberfall — the ground itself is already an advantage, and {name} learns that the hard way, mid-air, mid-fall.",
+    "{name} finds {antagonist} coiled around a forge that's been burning since before anyone living was born, and the first pass alone is nearly the last thing {name} sees clearly.",
+  ],
+  plague: [
+    "{antagonist} doesn't fight {name} in Emberfall so much as demonstrate — a patient, total unmaking that {name} only survives because it apparently isn't finished with {name} yet.",
+    "{name} finds what {antagonist} left behind in a foundry town and understands, standing in it, that {antagonist} was never far away at all — and is considerably closer now.",
+  ],
+  god: [
+    "{antagonist}'s attention finds {name} in Emberfall the way weather finds low ground — total, unhurried, and not remotely interested in whether {name} is ready.",
+    "{name} meets something in Emberfall that answers to {antagonist}, or answers as {antagonist}, or possibly is simply {antagonist} deciding to be looked at directly for once. None of the three options go well.",
+  ],
+};
+
+// References a dilemma flag if one is available, so the encounter (and by
+// extension the run) reads as continuous with choices made earlier — the
+// entire point of threading flags through S.world in the first place.
+function act4FlagLine(S){
+  const f = S.world.flags || {};
+  const h = S.hero;
+  if (f.rival === "carried")
+    return ` The message ${h.name} has been carrying doesn't survive the encounter — whatever it said, it's ash now, same as everything else here.`;
+  if (f.shortcut === "took")
+    return ` Something about the encounter feels familiar in a way ${h.name} can't place — the same shape as a name once traded away in the dark, maybe, if there were still a name left to compare it to.`;
+  if (f.village === "helped")
+    return ` ${h.name} thinks, in the middle of it, of a village that's rebuilding a little because someone once stopped to help. It isn't much of a shield. It's something.`;
+  return "";
+}
+
+function triggerAct4Failure(S){
+  const h = S.hero, w = S.world;
+  w.act4FailureDone = true;
+  const type = w.thread.antagonistType;
+  const base = fillTemplate(pick(ACT4_FAILURE[type]), threadVars(S));
+
+  // Cost 1: always a heavy, survivable HP toll (never lethal — see applyHpFrac).
+  applyHpFrac(S, -(0.45 + rng() * 0.20));
+
+  // Cost 2: the harshest thing actually available, in priority order — a
+  // charge held in reserve, then equipped gear, then (only if truly nothing
+  // else is left) a flag's payoff taken back.
+  let costLine;
+  if (h.skillCheatDeathQueue && h.skillCheatDeathQueue.length){
+    h.skillCheatDeathQueue.pop();
+    costLine = ` Whatever was holding a line open for ${h.name} in reserve is gone now — spent just staying alive.`;
+  } else if (h.cheatDeathCharges > 0){
+    h.cheatDeathCharges--;
+    costLine = ` A ward ${h.name} was carrying breaks keeping this from being the last page of the chronicle.`;
+  } else {
+    const equippedSlots = SLOT_KEYS.filter(s => S.gear[s]);
+    if (equippedSlots.length){
+      const slot = pick(equippedSlots);
+      const lost = S.gear[slot];
+      S.gear[slot] = null;
+      // cap() because costLine is appended after a sentence-ending period and
+      // itemPhrase() returns a lowercase article ("a Silvered Maul ...").
+      costLine = ` ${cap(itemPhrase(lost))} doesn't survive it — ${h.name} does, barely, and without it.`;
+    } else if (S.world.flags.rival === "carried"){
+      S.world.flags.rival = "lost";
+      costLine = ` Whatever ${h.name} was carrying for someone else doesn't make it through — lost, the same as everything else here.`;
+    } else {
+      costLine = ` ${h.name} has nothing left to lose but time, and loses some of that too.`;
+    }
+  }
+
+  logEvent(S, "antagonist", `${base}${costLine}${act4FlagLine(S)}`, 2);
+}
+
+// Extra sentence appended to the death/ascension epilogue when a dilemma flag
+// is available to pay off — the concrete demonstration that a choice made
+// hours (or acts) earlier still means something at the very end. Priority
+// order favors the most recently-set, most story-relevant flag.
+function flagEpitaph(S, outcome){
+  const f = S.world.flags || {};
+  const h = S.hero;
+  if (f.edge === "accepted")
+    return outcome === "ascension"
+      ? ` Whatever ${h.name} took on that last stretch of road went into this. It isn't easy to look at directly, even now.`
+      : ` Whatever ${h.name} took on that last stretch of road didn't turn out to be enough, in the end. It rarely is.`;
+  if (f.edge === "refused")
+    return outcome === "ascension"
+      ? ` ${h.name} did this with nothing but what was already earned. That much, at least, is worth saying plainly.`
+      : ` ${h.name} refused the easy edge, at the end, and paid the harder price instead. That was always going to be true either way.`;
+  if (f.wastes === "helped")
+    return ` Somewhere behind ${h.name}, in the Ashen Wastes, someone is still walking because ${h.name} stopped once. That doesn't end the story. It's still true.`;
+  if (f.village === "helped")
+    return ` A village ${h.name} once stopped to help is still standing, mostly — more than it would have said for itself the day ${h.name} found it.`;
+  return "";
+}
 
 /* ----------------------------- the confrontation --------------------------- */
 // Ascension (design doc §10): level 50 + an Epic-or-better relic unlocks a
@@ -1378,6 +1885,13 @@ function trimHall(meta){
   if (meta.hall.length > HALL_MAX) meta.hall = meta.hall.slice(-HALL_MAX);
 }
 
+// Cap on goquest_meta's graves, same reasoning as HALL_MAX — a long-lived
+// player's Hall shouldn't let this grow without bound either.
+const GRAVE_MAX = 100;
+function trimGraves(meta){
+  if (meta.graves.length > GRAVE_MAX) meta.graves = meta.graves.slice(-GRAVE_MAX);
+}
+
 // Name generation. Base pool is always available; Ancient and Titles are
 // achievement-gated (see ACHIEVEMENTS above) and feed into the same roll
 // rather than replacing it, so an unlocked pool WIDENS the draw instead of
@@ -1449,6 +1963,12 @@ function createState(name, raceKey, meta){
       gold: (meta && meta.unlocks && meta.unlocks.startGold) || 0,
       skills: [], cheatDeathCharges: race.bonusCheatDeath || 0,
       skillCheatDeathQueue: [], skillState: {},
+      boons: [],   // dilemma-granted temporary effects — see grantBoon()/boonAgg()
+      // Persistent world (2026-08-03 brief) — ids of graves already found
+      // THIS run, so the same grave can't fire twice and so a hero never
+      // finds their own (see eligibleGraves()). Per-hero, so it resets on
+      // every new hero even though the graves themselves live in meta.
+      foundGraveIds: [],
       // Phase 7 — meta-progression unlocks baked in ONCE at creation (not
       // read continuously from META during play, which isn't threaded
       // through the simulation core). See ACHIEVEMENTS' apply() functions.
@@ -1469,6 +1989,9 @@ function createState(name, raceKey, meta){
       diedInConfrontation: false, // distinguishes a confrontation death from an ordinary zone6 death
       ascendedAt: null,           // simulated clock time of ascension, for the epilogue's "time lived"
       ascensionEpilogueIdx: null, // which ASCENSION_EPILOGUES template, stable on reload
+      // Narrative dilemma gates (2026-08-03 brief) — see DILEMMAS.
+      flags: {},              // set by dilemma choices, read back by later story beats/epilogues
+      act4FailureDone: false, // guards the Act IV costly-failure beat to fire exactly once
     },
     gear: {weapon:null, armor:null, helm:null, gloves:null, boots:null, relic:null},
     inventory: [],
@@ -1557,6 +2080,8 @@ function effStats(hero, gear){
   }
   const agg = skillAgg(hero);
   for (const k of STAT_KEYS) out[k] += agg.stat[k];
+  const bagg = boonAgg(hero);
+  for (const k of STAT_KEYS) out[k] += bagg.stat[k];
   return out;
 }
 
@@ -1564,6 +2089,7 @@ function derived(hero, gear){
   const st = effStats(hero, gear);
   const race = RACES[hero.race];
   const agg = skillAgg(hero);
+  const bagg = boonAgg(hero);   // dilemma-granted temporary effects — see grantBoon()
   const maxHP = 50 + st.con * 8 + hero.level * 10;
   return {
     stats: st,
@@ -1571,17 +2097,17 @@ function derived(hero, gear){
     taskMs: TASK_DURATION * 1000
             * Math.max(0.65, 1 - st.str * 0.004)
             * (race.taskSpeedMult || 1)
-            * agg.taskSpeedMult,
-    xpMult:   (1 + st.int * 0.012) * (race.xpMult || 1) * agg.xpMult,
-    goldMult: (1 + st.cha * 0.010) * agg.goldMult,
+            * agg.taskSpeedMult * bagg.taskSpeedMult,
+    xpMult:   (1 + st.int * 0.012) * (race.xpMult || 1) * agg.xpMult * bagg.xpMult,
+    goldMult: (1 + st.cha * 0.010) * agg.goldMult * bagg.goldMult,
     evasion:  Math.min(BALANCE.evasionCap, st.dex * 0.008)
-              + (race.evasionBonus || 0) + agg.evasion,
+              + (race.evasionBonus || 0) + agg.evasion + bagg.evasion,
     perilMult: Math.max(0.70, 1 - st.wis * 0.006),
     regenPerTask: maxHP * BALANCE.regenBase
                   * (1 + Math.min(st.con, BALANCE.regenConCap) / BALANCE.regenConDiv)
                   * (race.regenMult || 1),
     dropChance: 0.12 + (race.dropBonus || 0) + (hero.metaDropBonus || 0),
-    mitigation: agg.mitigation,
+    mitigation: Math.min(BALANCE.skillMitigationCap, agg.mitigation + bagg.mitigation),
     sellMult: agg.sellMult,
     buyMult: agg.buyMult,
     dropTierBump: agg.dropTierBump,
@@ -1656,6 +2182,16 @@ function levelUp(S){
     logEvent(S, "story", fillTemplate(tmpl, threadVars(S, {sign})), 2);
   }
 
+  // Antagonist on-screen encounters (Acts II/III) — non-blocking, thread-typed.
+  if (ANTAGONIST_ENCOUNTER_LEVEL_ACT[h.level]){
+    const actN = ANTAGONIST_ENCOUNTER_LEVEL_ACT[h.level];
+    const variants = ANTAGONIST_ENCOUNTER[actN][S.world.thread.antagonistType];
+    logEvent(S, "antagonist", fillTemplate(pick(variants), threadVars(S)), 2);
+  }
+
+  // Act IV's costly failed encounter — fires once. See triggerAct4Failure().
+  if (h.level === ACT4_FAILURE_LEVEL && !S.world.act4FailureDone) triggerAct4Failure(S);
+
   // Class advancement is a blocking choice: the sim stops here and waits.
   if (h.level === 10 && CLASSES[h.cls].tier === 0){
     S.world.pendingChoice = {kind:"class", options:["soldier","scout","apprentice"]};
@@ -1682,6 +2218,14 @@ function levelUp(S){
       return;
     }
   }
+  // Narrative dilemma gates — same blocking machinery as class/skill, but the
+  // choice is prose, not a stat pick, and sets a flag on S.world.flags that
+  // later beats (Act IV's failure, the epilogues) read back. See DILEMMAS.
+  if (DILEMMA_LEVELS.includes(h.level)){
+    beginDilemma(S, DILEMMA_LEVEL_KEY[h.level]);
+    return;
+  }
+
   // Zone changes are level-gated and automatic.
   const z = zoneForLevel(h.level);
   if (z.n !== S.world.zone) beginTravel(S, z.n);
@@ -1922,6 +2466,126 @@ function rollDrop(S){
   S.inventory.push(item);
 }
 
+// The single item worth remembering a hero by — used at death to snapshot
+// what goes into their grave as a possible heirloom (see renderDeath's "Lay
+// Them to Rest" handler). Ties broken by slot order; doesn't matter which.
+function bestGearItem(gear){
+  let best = null;
+  for (const slot of SLOT_KEYS){
+    const it = gear[slot];
+    if (it && (!best || it.score > best.score)) best = it;
+  }
+  return best;
+}
+
+/* ------------------------------ graves ------------------------------------ */
+// Persistent world (2026-08-03 brief, design doc §11 — meta-progression is
+// "unlocking, not numeric"). A grave is written into goquest_meta at the
+// moment a hero is laid to rest (see renderDeath's click handler — mirrors
+// how META.hall.push already works, so grave CREATION never touches the
+// simulation core). What follows is the READ side: a LATER hero, questing
+// through the zone an earlier hero fell in, has a small chance per task to
+// come across the marker.
+//
+// Same discipline as unlockAchievement() throughout this file: every
+// function below checks S._meta FIRST and only calls rng()/pick() after
+// that check passes, so simulate(n) — where meta is always null — consumes
+// zero extra randomness and the seeded balance numbers in CLAUDE.md don't move.
+
+// Fixed per-task chance, independent of how many graves happen to be stored
+// — 40 graves in the hall should feel exactly as special to stumble on as 1,
+// not 40x noisier. eligibleGraves() below gates this on there being at least
+// one real candidate in the CURRENT zone; which one gets found (if any) is a
+// uniform pick among those candidates, not an independent roll per grave.
+const GRAVE_FIND_CHANCE = 0.006;
+// Even when a grave IS found, its stored heirloom (if the fallen hero had
+// any gear worth remembering) isn't guaranteed to still be there — "can
+// yield one piece of gear," not "always does." Once it's claimed by anyone
+// it's gone for good (grave.heirloomRecovered), same as any other item.
+const GRAVE_HEIRLOOM_CHANCE = 0.6;
+
+// Which graves in META.graves this hero could plausibly stumble on RIGHT
+// NOW: made in this same zone, not already found by THIS hero this run
+// (foundGraveIds resets on every new hero — see createState), and — belt
+// and suspenders on top of the structural guarantee that a living hero's
+// own grave can't exist yet — never one bearing this hero's own name.
+function eligibleGraves(S){
+  const meta = S._meta;
+  if (!meta || !meta.graves || !meta.graves.length) return [];
+  const found = S.hero.foundGraveIds || [];
+  return meta.graves.filter(g => g.zone === S.world.zone
+                               && !found.includes(g.id)
+                               && g.name !== S.hero.name);
+}
+
+// Template vars for GRAVE_EPITAPHS. {race}/{cls} resolve the grave's stored
+// keys back through the CURRENT tables (same approach hallRow() uses), so a
+// grave keeps reading correctly even if these definitions ever change shape.
+function graveVars(grave, S){
+  const raceName = (RACES[grave.race] && RACES[grave.race].name) || grave.race;
+  return {
+    name: grave.name,
+    cls: (CLASSES[grave.cls] && CLASSES[grave.cls].name) || grave.cls,
+    race: raceName,
+    article: aOrAn(raceName),
+    cause: grave.cause || "something the chronicle never named",
+    level: grave.level,
+    finder: S.hero.name,
+  };
+}
+
+// Re-rolls the stored heirloom at the FINDING hero's CURRENT zone — the
+// entire point of the mechanic (design doc §11): a Legendary stored from a
+// level-48 hero must land on a level-6 finder exactly as if it had freshly
+// dropped in zone 1, never as a cross-run power transfer. Only identity
+// (name/slot/tier) and the owner tag come from the grave; ilvl, score and
+// stats are generated fresh, the same shape generateItem() already uses.
+// `owner` is read straight off the stored heirloom, never reassigned to the
+// finder here — the sword stays Sesh's even generations later (see the "Lay
+// Them to Rest" handler, which preserves an existing owner tag rather than
+// overwriting it).
+function generateHeirloom(zoneN, grave){
+  const heir = grave.heirloom;
+  const z = ZONES[zoneN-1];
+  const ilvl = randInt(z.ilvl[0], z.ilvl[1]);
+  const score = ilvl * TIERS[heir.tier].mult;
+  const budget = Math.max(1, Math.round(score * BALANCE.gearBudget));
+  const item = {
+    name: heir.name, slot: heir.slot, tier: heir.tier, ilvl, score,
+    stats: rollItemStats(heir.slot, budget), cheatDeath: 0,
+    owner: heir.owner,
+  };
+  if (heir.slot === "relic" && rng() < 0.15) item.cheatDeath = 1;
+  return item;
+}
+
+function rollGraveDiscovery(S){
+  if (!S._meta) return;                  // zero rng() draws when meta absent — simulate(n) harness
+  const eligible = eligibleGraves(S);
+  if (!eligible.length) return;
+  if (rng() >= GRAVE_FIND_CHANCE) return;
+
+  const h = S.hero;
+  const grave = pick(eligible);
+  h.foundGraveIds = h.foundGraveIds || [];
+  h.foundGraveIds.push(grave.id);
+  logEvent(S, "grave", fillTemplate(pick(GRAVE_EPITAPHS), graveVars(grave, S)), 2);
+
+  if (grave.heirloom && !grave.heirloomRecovered && rng() < GRAVE_HEIRLOOM_CHANCE){
+    grave.heirloomRecovered = true;
+    saveMeta();   // meta is a live reference (attachMeta) — persist the claim right away,
+                   // same discipline unlockAchievement() already follows, so the same
+                   // heirloom can never be handed out to two different finders.
+    const item = generateHeirloom(S.world.zone, grave);
+    S.stats.itemsFound++;
+    const equipped = S.gear[item.slot];
+    const upgrade = !equipped || item.score > equipped.score;
+    if (upgrade) equipItem(S, item); else S.inventory.push(item);
+    logEvent(S, "heirloom", fillTemplate(pick(GRAVE_HEIRLOOM_LINES),
+      Object.assign({owner: item.owner, itemName: item.name}, graveVars(grave, S))), 2);
+  }
+}
+
 /* ----------------------------- merchant trips ------------------------------ */
 // Inventory-full is the trigger; the trip itself (sell/buy/heal) is
 // instantaneous story-time, bookended by the same TRAVELING machinery zone
@@ -2098,6 +2762,20 @@ function arriveBackFromMerchant(S){
   S.world.taskName = pick(TASKS[S.world.zone]);
 }
 
+// Resumes QUESTING after a dilemma option's time cost has been spent (see
+// DILEMMAS / finishChoice()) — same shape as arriveBackFromMerchant(), just
+// without a merchant leg. Consumed through the normal advance() ms-budget
+// like any other travel state, which is what keeps a costly dilemma inside
+// the bank-and-chain flow instead of needing its own special case.
+function arriveAfterDilemmaDelay(S){
+  S.world.travelKind = null;
+  S.world.state = "QUESTING";
+  S.world.taskProgressMs = 0;
+  S.world.taskName = pick(TASKS[S.world.zone]);
+  const z = zoneForLevel(S.hero.level);
+  if (z.n !== S.world.zone) beginTravel(S, z.n);
+}
+
 function completeTask(S){
   const h = S.hero, w = S.world;
   const d = derived(h, S.gear);
@@ -2119,7 +2797,9 @@ function completeTask(S){
   rollDrop(S);
   rollPeril(S);
   if (w.state !== "QUESTING") return;   // dead — the sim halts, nothing left to check
+  rollGraveDiscovery(S);                // no-op (and zero rng draws) when S._meta is null
   checkTriggers(S);
+  decayBoons(S);
 
   // Level-up may cascade; stop immediately if it blocks or starts travel.
   let guard = 0;
@@ -2330,6 +3010,7 @@ function advance(S, ms){
       ms -= w.travelMsLeft; w.clock += w.travelMsLeft; w.travelMsLeft = 0;
       if (w.travelKind === "merchant_out") arriveAtMerchant(S);
       else if (w.travelKind === "merchant_return") arriveBackFromMerchant(S);
+      else if (w.travelKind === "dilemma_delay") arriveAfterDilemmaDelay(S);
       else arriveInZone(S);
     } else if (w.state === "CONFRONTATION"){
       const need = derived(S.hero, S.gear).taskMs - w.taskProgressMs;
@@ -2346,6 +3027,7 @@ function advance(S, ms){
 function resolveChoice(S, optionKey){
   const c = S.world.pendingChoice;
   if (!c) return;
+  let delayMs = 0;
   if (c.kind === "class"){
     S.hero.cls = optionKey;
     S.hero.classPath.push(optionKey);
@@ -2369,8 +3051,26 @@ function resolveChoice(S, optionKey){
     grantSkill(S, optionKey);
     const sk = SKILLS[optionKey];
     logEvent(S, "skill", `${S.hero.name} learns ${sk.name} — ${sk.blurb}`, 2);
+  } else if (c.kind === "dilemma"){
+    const dil = DILEMMAS[c.dilemmaKey];
+    const opt = dil && dil.options[optionKey];
+    if (opt) delayMs = opt.apply(S) || 0;
   }
   S.world.pendingChoice = null;
+  finishChoice(S, delayMs);
+}
+
+// Shared tail for every resolved blocking choice. Class/skill/class2 always
+// pass delayMs 0 (resume immediately); a dilemma option that costs time
+// routes through the "dilemma_delay" travel state instead, so the cost is
+// spent through the normal advance() ms-budget — see arriveAfterDilemmaDelay().
+function finishChoice(S, delayMs){
+  if (delayMs > 0){
+    S.world.state = "TRAVELING";
+    S.world.travelKind = "dilemma_delay";
+    S.world.travelMsLeft = delayMs;
+    return;
+  }
   S.world.state = "QUESTING";
   const z = zoneForLevel(S.hero.level);
   if (z.n !== S.world.zone) beginTravel(S, z.n);
@@ -2385,7 +3085,8 @@ let META = null;
 
 function defaultMeta(){
   return {version: META_VERSION, achievements:[], unlocks:{}, hall:[], heroesRun:0,
-          lifetimeTasks:0, classesReached:[], ascensionCount:0, heroesLaidToRest:0};
+          lifetimeTasks:0, classesReached:[], ascensionCount:0, heroesLaidToRest:0,
+          graves:[], graveSeq:0};
 }
 // Every new meta field needs both a default here AND a fallback below, same
 // discipline as the hero save's migrate() — a corrupted or pre-Phase-7
@@ -2405,6 +3106,11 @@ function migrateMeta(m){
   if (!Array.isArray(m.classesReached)) m.classesReached = [];
   if (m.ascensionCount === undefined) m.ascensionCount = 0;
   if (m.heroesLaidToRest === undefined) m.heroesLaidToRest = 0;
+  // v2 -> v3 (graves & heirlooms, 2026-08-03 brief). A pre-existing hall of
+  // Fallen heroes predates grave-tracking entirely — they just won't have a
+  // grave on record, same as an old save with no achievements yet.
+  if (!Array.isArray(m.graves)) m.graves = [];
+  if (m.graveSeq === undefined) m.graveSeq = 0;
   m.version = META_VERSION;
   return m;
 }
@@ -2471,6 +3177,16 @@ function migrate(s){
   // hero itself (see createState) — old saves predate both fields entirely.
   if (s.hero.metaDropBonus === undefined) s.hero.metaDropBonus = 0;
   if (s.hero.metaInvBonus === undefined) s.hero.metaInvBonus = 0;
+  // v6 -> v7 (narrative dilemma gates + Act IV failure + boons, 2026-08-03
+  // brief). flags/act4FailureDone are new world fields; boons is a new
+  // hero-runtime field alongside skillCheatDeathQueue/skillState.
+  if (!s.world.flags) s.world.flags = {};
+  if (s.world.act4FailureDone === undefined) s.world.act4FailureDone = false;
+  if (!s.hero.boons) s.hero.boons = [];
+  // v7 -> v8 (graves & heirlooms, 2026-08-03 brief). Per-hero record of which
+  // graves THIS hero has already found, so a save from before the feature
+  // existed just starts with an empty list — nothing to migrate out of.
+  if (!Array.isArray(s.hero.foundGraveIds)) s.hero.foundGraveIds = [];
   s.version = SAVE_VERSION;
   return s;
 }
@@ -2771,28 +3487,48 @@ function modText(mods){
 function renderChoice(){
   const c = S.world.pendingChoice;
   const banked = S.world.bankedMs || 0;
-  const isSkill = c.kind === "skill";
-  const heading = isSkill ? "A New Discipline" : "The Road Forks";
-  const prompt = isSkill
-    ? `${esc(S.hero.name)} has learned enough to refine their craft. A path must be chosen.`
-    : `${esc(S.hero.name)} has reached level ${S.hero.level}. A path must be chosen.`;
-  const options = c.options.map(k => {
-    if (isSkill){
+  let heading, prompt, options;
+
+  if (c.kind === "skill"){
+    heading = "A New Discipline";
+    prompt = `${esc(S.hero.name)} has learned enough to refine their craft. A path must be chosen.`;
+    options = c.options.map(k => {
       const sk = SKILLS[k];
       return `<button class="pick" data-opt="${k}">
           <b>${esc(sk.name)}</b>
           <span>${esc(sk.blurb)}</span>
         </button>`;
-    }
-    const cl = CLASSES[k];
-    return `<button class="pick" data-opt="${k}">
-        <b>${esc(cl.name)}</b>
-        <span>${esc(cl.blurb)}<br>${esc(weightText(cl.weights))}</span>
-      </button>`;
-  }).join("");
+    }).join("");
+  } else if (c.kind === "dilemma"){
+    // Situation and option texts were resolved ONCE, at the moment the gate
+    // fired (see beginDilemma()) — c.variantIdx makes that stable across a
+    // reload, same pattern as w.epilogueIdx. fillTemplate() substitutes
+    // {name}/{antagonist} the same way every other story string does.
+    const dil = DILEMMAS[c.dilemmaKey];
+    heading = dil.title;
+    prompt = esc(fillTemplate(dil.variants[c.variantIdx], threadVars(S)));
+    options = c.options.map(k => {
+      const o = dil.options[k];
+      return `<button class="pick" data-opt="${k}">
+          <b>${esc(o.label)}</b>
+          <span>${esc(fillTemplate(o.desc, threadVars(S)))}</span>
+        </button>`;
+    }).join("");
+  } else {   // class / class2
+    heading = "The Road Forks";
+    prompt = `${esc(S.hero.name)} has reached level ${S.hero.level}. A path must be chosen.`;
+    options = c.options.map(k => {
+      const cl = CLASSES[k];
+      return `<button class="pick" data-opt="${k}">
+          <b>${esc(cl.name)}</b>
+          <span>${esc(cl.blurb)}<br>${esc(weightText(cl.weights))}</span>
+        </button>`;
+    }).join("");
+  }
+
   app.innerHTML = `
     <div class="modal"><div class="card">
-      <h2>${heading}</h2>
+      <h2>${esc(heading)}</h2>
       <p class="muted tiny" style="margin-top:0">
         ${prompt}
         ${banked > 5000 ? `<br><span class="gold">${esc(fmtDur(banked))} of the adventure awaits your choice.</span>` : ""}
@@ -2817,7 +3553,7 @@ function renderDeath(){
     level: h.level, zone: esc(ZONES[w.zone-1].name),
     killedBy: esc(w.killedBy || "Something in the dark finally caught them"),
   };
-  const epilogue = EPILOGUES[w.epilogueIdx || 0](ctx);   // ctx already escaped — don't esc() this again
+  const epilogue = EPILOGUES[w.epilogueIdx || 0](ctx) + esc(flagEpitaph(S, "death"));   // ctx already escaped — don't esc() this again
   // Clamped: a save migrated from before birthTime moved onto the simulated
   // clock can still hold a wall-clock birthTime and go negative.
   const lived = Math.max(0, S.stats.deathTime - S.stats.birthTime);
@@ -2851,11 +3587,32 @@ function renderDeath(){
     <button class="btn" id="layrest">Lay Them to Rest</button>`;
 
   document.getElementById("layrest").addEventListener("click", () => {
+    // Persistent world (2026-08-03 brief): a grave outlives the hero save,
+    // same reasoning as the Hall itself, so it's written here rather than
+    // from the simulation core. Snapshot the single best item the hero was
+    // carrying — the only piece a later hero can ever recover (rollGraveDiscovery
+    // in the core reads this back, re-rolled at whatever zone THAT hero is
+    // in). If the item was already an heirloom itself (owner set), keep the
+    // ORIGINAL owner rather than reassigning it to this hero — the sword
+    // stays Sesh's no matter how many hands it passes through after.
+    const best = bestGearItem(S.gear);
+    META.graves = META.graves || [];
+    META.graveSeq = (META.graveSeq || 0) + 1;
+    const graveId = META.graveSeq;
+    META.graves.push({
+      id: graveId, name: h.name, race: h.race, cls: h.cls, level: h.level,
+      zone: w.zone, cause: w.killedBy, at: w.clock,
+      heirloom: best ? {name: best.name, slot: best.slot, tier: best.tier,
+                         owner: best.owner || h.name} : null,
+      heirloomRecovered: false,
+    });
+    trimGraves(META);
     META.hall.push({
       name: h.name, race: h.race, cls: h.cls,
       classPath: h.classPath.map(k => (CLASSES[k] ? CLASSES[k].name : k)),
       level: h.level, zone: w.zone,
       hoursLived: r2(lived / 3600000), cause: w.killedBy, status: "Fallen", at: w.clock,
+      graveId,
     });
     trimHall(META);
     META.heroesLaidToRest = (META.heroesLaidToRest || 0) + 1;
@@ -2880,7 +3637,7 @@ function renderAscension(){
     goal: esc(t.goal || "finish what they started"),
     doom: esc(t.doom || "the worst would have come to pass"),
   };
-  const epilogue = ASCENSION_EPILOGUES[w.ascensionEpilogueIdx || 0](ctx);   // ctx already escaped
+  const epilogue = ASCENSION_EPILOGUES[w.ascensionEpilogueIdx || 0](ctx) + esc(flagEpitaph(S, "ascension"));   // ctx already escaped
   const lived = Math.max(0, (w.ascendedAt || w.clock) - S.stats.birthTime);
   const recap = pendingSummary ? summaryCard(pendingSummary, {dismiss:false, entrance:false}) : "";
 
@@ -2978,6 +3735,18 @@ function renderHall(){
     <button class="btn ghost" id="hall-back">Back</button>`;
   document.getElementById("hall-back").addEventListener("click", () => { metaView = null; render(); });
 }
+// Grave/heirloom status line (item 4 of the 2026-08-03 brief) — pre-existing
+// Fallen entries predate grave-tracking and simply have no graveId, so they
+// fall through to no line at all rather than a broken lookup.
+function hallGraveLine(e){
+  if (e.graveId == null) return "";
+  const grave = (META.graves || []).find(g => g.id === e.graveId);
+  if (!grave) return "";
+  const status = grave.heirloom
+    ? (grave.heirloomRecovered ? "Their heirloom has been recovered." : "Their heirloom still waits to be found.")
+    : "A grave marks where they fell.";
+  return `<div class="tiny muted" style="margin-top:2px">${esc(status)}</div>`;
+}
 function hallRow(e){
   const statusColor = {Fallen: "var(--blood)", Legend: "var(--gold)", Retired: "var(--sky)"}[e.status] || "var(--ink-dim)";
   const path = (e.classPath && e.classPath.length)
@@ -2989,6 +3758,7 @@ function hallRow(e){
       <div class="tiny muted">${esc(RACES[e.race] ? RACES[e.race].name : e.race)} &middot; ${path} &middot; Level ${e.level}</div>
       <div class="tiny" style="margin-top:2px">${esc(e.hoursLived)}h lived &middot; last in ${esc(zoneName)}</div>
       <div class="tiny" style="margin-top:2px; color:${statusColor}">${esc(e.status)}${e.cause ? " &middot; " + esc(e.cause) : ""}</div>
+      ${hallGraveLine(e)}
     </div>`;
 }
 
@@ -3106,7 +3876,10 @@ function entryKindClass(e){
   if (e.type === "cheatdeath") return "k-cheatdeath";
   if (e.type === "neardeath") return "k-neardeath";
   if (e.type === "confrontation") return "k-confrontation";
+  if (e.type === "antagonist") return "k-confrontation";
   if (e.type === "achievement") return "k-achievement";
+  if (e.type === "grave") return "k-grave";
+  if (e.type === "heirloom") return "k-heirloom";
   // Every imp-2 gear entry is, by construction (see rollDrop/doMerchantTrip),
   // an Epic or Legendary equip — never a routine one — so a text match on
   // the tier word itemPhrase() already prepends is a safe, cheap way to
@@ -3134,20 +3907,29 @@ const CHRONICLE_CATEGORIES = [
 const CHRONICLE_TYPE_TO_CATEGORY = {
   task: "task",
   gear: "gear",
-  skill: "skill", class: "skill", choice: "skill",
-  story: "story", birth: "story", zone: "story",
+  // "level" belongs here, not in story. It was previously unmapped and fell
+  // through the || "story" fallback below, which put 39 level-up lines against
+  // 35 genuinely narrative ones in a level-40 run — so the Story-only default
+  // view was more than half progression spam. This chip is the character-
+  // advancement bucket: skill picks, class forks, and levels.
+  skill: "skill", class: "skill", choice: "skill", level: "skill",
+  story: "story", birth: "story", zone: "story", dilemma: "story", grave: "story",
   peril: "danger", neardeath: "danger", cheatdeath: "danger",
   death: "danger", confrontation: "danger", ascension: "danger", trigger: "danger",
+  antagonist: "danger",
   merchant: "merchant",
   achievement: "achievement",
+  heirloom: "gear",
 };
 function chronicleCategory(e){
   if (e.type === "travel") return /pack is full/i.test(e.text) ? "merchant" : "story";
   return CHRONICLE_TYPE_TO_CATEGORY[e.type] || "story";
 }
-// All categories on by default, matching the spec. Not persisted — a fresh
-// load always shows everything.
-let chronicleFilters = new Set(CHRONICLE_CATEGORIES.map(c => c.key));
+// Story is the only category on by default (Rob's call, 2026-08-03) — a
+// fresh load opens on the narrative thread, not the full firehose. Not
+// persisted — every fresh load returns to Story-only regardless of what the
+// player toggled last session; toggling itself is unchanged (wireChronicleFilters()).
+let chronicleFilters = new Set(["story"]);
 function chronicleFilterBar(){
   return `<div class="chipbar">${CHRONICLE_CATEGORIES.map(c => `
     <button class="chip" type="button" data-filter="${c.key}" aria-pressed="${chronicleFilters.has(c.key)}">${esc(c.label)}</button>`
@@ -3554,6 +4336,12 @@ window.GQ = {
   CONFRONTATION_SEQUENCE, CONFRONTATION_PERILS, ASCENSION_LINES, ASCENSION_EPILOGUES,
   hasEpicOrBetterRelic, beginConfrontation, completeConfrontationStep,
   rollConfrontationPeril, renderAscension, renderDeath,
+  // Narrative dilemma gates + antagonist-on-screen beats (2026-08-03 brief).
+  DILEMMA_LEVELS, DILEMMA_LEVEL_KEY, DILEMMAS, beginDilemma, finishChoice,
+  ANTAGONIST_ENCOUNTER_LEVEL_ACT, ANTAGONIST_ENCOUNTER,
+  ACT4_FAILURE_LEVEL, ACT4_FAILURE, triggerAct4Failure, act4FlagLine,
+  flagEpitaph, applyHpFrac, applyStatScar, grantBoon, decayBoons, boonAgg,
+  arriveAfterDilemmaDelay,
   // Phase 7 — meta-progression, achievements, Hall of Legends.
   ACHIEVEMENTS, ACHIEVEMENT_KEYS, unlockAchievement, onHeroDeath, onHeroRunEnd,
   CLASS_ARCHETYPE, archetypeForClass, ARCHETYPE_BASE_BY_SLOT, checkFullRareSet,
@@ -3561,8 +4349,13 @@ window.GQ = {
   NAME_FIRST_BY_RACE,
   rollHeroName, defaultMeta, migrateMeta, loadMeta, saveMeta, retireHero,
   renderHall, renderAchievements, renderRetireConfirm,
+  // Graves & heirlooms (2026-08-03 brief).
+  GRAVE_MAX, trimGraves, GRAVE_FIND_CHANCE, GRAVE_HEIRLOOM_CHANCE,
+  GRAVE_EPITAPHS, GRAVE_HEIRLOOM_LINES, bestGearItem, eligibleGraves,
+  graveVars, generateHeirloom, rollGraveDiscovery, hallGraveLine,
   get metaView(){ return metaView; }, set metaView(v){ metaView = v; },
   get retireConfirmOpen(){ return retireConfirmOpen; }, set retireConfirmOpen(v){ retireConfirmOpen = v; },
+  get catchupBusy(){ return catchupBusy; },   // verification surface: is a runCatchUp() chain still mid-flight?
   get justUnlocked(){ return justUnlocked; },
   // Items 2 & 8 — prologue screen and chronicle category filters.
   renderPrologue,
