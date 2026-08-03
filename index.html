@@ -13,7 +13,7 @@
   --blood:#a33b32; --leaf:#6f9a5c; --sky:#5b87b8;
   /* headline family only — wordmark, section headings, title rule. --gold
      keeps sole ownership of loot/currency/tier semantics; do not repaint it. */
-  --head:#5b7cfa; --head-lit:#8aa2ff;
+  --head:#7cbf85;
   /* gear quality tiers — design doc §9, exact hex values */
   --tier-common:#9ca3af; --tier-uncommon:#4ade80; --tier-rare:#60a5fa;
   --tier-epic:#c084fc; --tier-legendary:#fbbf24;
@@ -1987,7 +1987,9 @@ function merchantTripLine(h, soldCount, earned, bought, commissioned, blockedByP
 
   let text = `${h.name} makes for the merchant's stall — ${soldPart}${outcome ? " " + outcome : ""}. `;
   if (commissioned) text += `${h.name} pays a hard premium to have ${itemPhrase(commissioned)} made to order. `;
-  text += `Wounds close, breath comes easy again, and ${h.name} turns back to the road.`;
+  // "they" rather than the name again — the line already opens with it, and
+  // there is no other actor in this clause for the pronoun to attach to.
+  text += `Wounds close, breath comes easy again, and they turn back to the road.`;
   return text;
 }
 
@@ -2455,7 +2457,11 @@ function bootCatchUp(){
   runCatchUp(total, (why, spent) => {
     S.lastTick = Date.now();
     if (why === "complete") S.world.clock = Date.now();
-    pendingSummary = buildSummary(before, spent);
+    // Only surface a digest if something actually happened. Returning to a hero
+    // who is already sitting on a blocking choice spends nothing, and without
+    // this guard the morning opens on "0m on the road, 0 tasks completed".
+    const sum = buildSummary(before, spent);
+    pendingSummary = (sum.tasks > 0 || sum.levelTo > sum.levelFrom) ? sum : null;
     saveGame();
     render();
     startLiveLoop();
