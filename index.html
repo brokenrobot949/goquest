@@ -75,6 +75,13 @@ h1,h2,h3{font-family:Cinzel,Georgia,serif; font-weight:700; margin:0}
 .gearslot b{display:block; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--ink-mute)}
 .itemname{font-family:Cinzel,serif; font-size:14.5px; margin-top:2px}
 
+/* learned skills — a record of what the hero has become, not disabled UI, so
+   they get a proper readable title tone instead of inheriting .gearslot's
+   muted uppercase slot-label style (which is what made them fade out). */
+.skill-row{padding:9px 0; border-bottom:1px solid var(--line)}
+.skill-row:last-child{border-bottom:none}
+.skill-row .skill-title{display:block; font-family:Cinzel,serif; font-size:14.5px; color:var(--head)}
+
 /* chronicle — sessions (real sittings, by time-gap) each hold chapter breaks
    (zone arrivals) and entries. Rendered strict newest-first throughout: newest
    sitting on top, and within it entries run newest-to-oldest, so the very top
@@ -131,6 +138,20 @@ h1,h2,h3{font-family:Cinzel,Georgia,serif; font-weight:700; margin:0}
 .pick b{display:block; font-family:Cinzel,serif; font-size:15px; color:var(--gold-lit); margin-bottom:3px}
 .pick span{display:block; font-size:12.5px; color:var(--ink-dim)}
 
+/* achievement rows — earned mirrors .pick[aria-pressed] (border + background
+   tint), the same "this is the chosen/won one" language already used at hero
+   creation, so an earned achievement reads as won at a glance rather than
+   just carrying different text. Titles get their own class (not .gearslot's
+   small uppercase label) since a row here is a title, not a slot name. */
+.ach-row{background:var(--bg2); border:1px solid var(--line); border-radius:9px;
+  padding:12px 13px; margin-bottom:9px}
+.ach-row:last-child{margin-bottom:0}
+.ach-row .ach-title{display:block; font-family:Cinzel,serif; font-size:15px;
+  margin-bottom:3px; color:var(--head)}
+.ach-row.earned{background:#241f18; border-color:var(--gold-lit)}
+.ach-row.earned .ach-title{color:var(--gold-lit)}
+.ach-check{color:var(--gold-lit)}
+
 .modal{position:fixed; inset:0; background:rgba(8,6,5,.86); display:flex; align-items:center;
   justify-content:center; padding:16px; z-index:50; overflow-y:auto}
 .modal .card{max-width:520px; width:100%; margin:auto}
@@ -159,8 +180,11 @@ input[type=text]:focus{outline:none; border-color:var(--gold)}
 .chip{font:inherit; font-size:12.5px; padding:8px 13px; cursor:pointer; background:var(--bg2);
   color:var(--ink-dim); border:1px solid var(--line); border-radius:999px; letter-spacing:.02em}
 .chip[aria-pressed="true"]{border-color:var(--gold); color:var(--ink); background:#241f18}
-.dismiss{background:none; border:none; color:var(--ink-mute); font:inherit; font-size:13px;
-  cursor:pointer; padding:10px 0 0; text-decoration:underline}
+/* WYWA's Dismiss control — a real button in the .btn.ghost idiom (not a
+   styled hyperlink), with the same touch target every other full-width
+   button gets. .dismiss is only ever used here, alongside .btn.ghost, so it
+   just adds the spacing this particular placement needs. */
+.dismiss{margin-top:10px}
 .empty{color:var(--ink-mute); font-size:13.5px; text-align:center; padding:22px 0}
 
 /* restrained motion — respected always; the only things that ever move are a
@@ -1236,9 +1260,17 @@ const ACHIEVEMENTS = {
     reward: "Unlocks the Tiefling as a playable race.",
     apply: meta => { meta.unlocks.tiefling = true; },
   },
-  allZoneDeaths: {
-    name: "Six Graves",
-    desc: "Have a hero die in each of the six zones, across all your heroes.",
+  // Replaces "Six Graves" (die in each of the six zones), which was measurably
+  // impossible: across 3,000 heroes run through the early game, zones 1 and 2
+  // produced ZERO deaths and nobody ever dropped below 24% HP there — zone 1
+  // deals ~0.25% of maxHP per task against ~1.1% regen. Deaths only occur in
+  // zones 3-6, and z3/z4 are ~0.9%/~0.8% of them, so even the achievable subset
+  // would have taken hundreds of heroes. Rob's call (2026-08-03) to replace it.
+  // A lifetime-accumulation goal is a category nothing else in this set covers,
+  // and it suits what the Ancient names are: the long record rather than one event.
+  longRecord: {
+    name: "The Long Record",
+    desc: "Complete 25,000 tasks across all your heroes.",
     reward: "Unlocks the Ancient name pool at hero creation.",
     apply: meta => { meta.unlocks.ancientNames = true; },
   },
@@ -1312,14 +1344,16 @@ function attachMeta(s, meta){
 // ordinary rollPeril() death and the rollConfrontationPeril() death — the
 // confrontation only ever happens in zone 6, but routing both through one
 // function keeps the bookkeeping in one place).
-function onHeroDeath(S){
+// Called when a hero's run ends by any route — death, ascension, retirement —
+// so the lifetime task tally survives the per-hero stats.tasksCompleted reset.
+function onHeroRunEnd(S){
   const meta = S._meta;
   if (!meta) return;
-  meta.deathZones = meta.deathZones || [];
-  const zn = S.world.zone;
-  if (!meta.deathZones.includes(zn)) meta.deathZones.push(zn);
-  if (meta.deathZones.length >= 6) unlockAchievement(meta, "allZoneDeaths", S);
+  meta.lifetimeTasks = (meta.lifetimeTasks || 0) + (S.stats.tasksCompleted || 0);
+  if (meta.lifetimeTasks >= 25000) unlockAchievement(meta, "longRecord", S);
 }
+// Kept under the old name so the existing death call sites don't have to move.
+function onHeroDeath(S){ onHeroRunEnd(S); }
 
 // Full-rare-set bookkeeping, called at the end of equipItem() so every path
 // that can complete the set (task drop, merchant buy, starting relic) is covered.
@@ -1762,8 +1796,60 @@ function rollItemStats(slot, budget){
   return stats;
 }
 
-function genItemName(slot, tier){
-  return `${pick(PREFIX_BY_TIER[tier])} ${pick(BASE_BY_SLOT[slot])} of ${pick(SUFFIX_BY_TIER[tier])}`;
+// Item 4 (thematic, not statistical — Rob's correction): a Sorcerer and a
+// Knight roll on the exact same SLOT_FAVORED stat budget (see rollItemStats
+// above, untouched), but the NAME they find should read as belonging to
+// their class — staves and robes for the Apprentice line, swords and plate
+// for the Soldier line, bows and leathers for the Scout line. Archetype is
+// derived from the hero's current class; tier-1 classes already lean their
+// own way (a Soldier finds martial gear before forking into Knight/etc. at
+// L25), and Novice (no lineage yet) falls back to the original generic bank.
+// Relics stay the wildcard slot (design doc §9) — no archetype split there.
+const CLASS_ARCHETYPE = {
+  soldier:"martial", knight:"martial", berserker:"martial", warden:"martial", dragoon:"martial",
+  scout:"skirmisher", ranger:"skirmisher", assassin:"skirmisher", duelist:"skirmisher", beastmaster:"skirmisher",
+  apprentice:"arcane", wizard:"arcane", sorcerer:"arcane", warlock:"arcane", alchemist:"arcane",
+};
+function archetypeForClass(clsKey){ return CLASS_ARCHETYPE[clsKey] || null; }
+
+// Archetype base-name banks — same [prefix] [base] [suffix] structure as the
+// generic bank (PREFIX_BY_TIER/SUFFIX_BY_TIER stay tier-based and untouched),
+// just a different BASE vocabulary per slot. Relic is deliberately absent —
+// it always falls back to the generic BASE_BY_SLOT.relic wildcard. Every
+// base here keeps the same singular/plural convention BASE_BY_SLOT already
+// uses (gloves/boots plural, matching itemPhrase()'s "a pair of" handling;
+// every other slot singular, so aOrAn() keeps reading correctly).
+const ARCHETYPE_BASE_BY_SLOT = {
+  martial: {
+    weapon: ["Broadsword","Longsword","Greataxe","Warhammer","Maul","Claymore","Battleaxe","Warpick"],
+    armor:  ["Plate Cuirass","Breastplate","Plate Harness","Plate Hauberk","Steel Plackart","Banded Cuirass","Plate Byrnie","Iron Cuirass"],
+    helm:   ["Great Helm","Barbute","Steel Warhelm","Plate Sallet","Visored Helm","Iron Casque","Crested Helm","Plate Coif"],
+    gloves: ["Plate Gauntlets","Steel Gauntlets","Mailed Fists","Iron Vambraces","War Gauntlets","Plated Grips","Steel Bracers","Ironclad Fists"],
+    boots:  ["Plate Greaves","Steel Sabatons","Iron Treads","War Greaves","Plated Boots","Ironshod Warboots","Steel Footguards","Mailed Greaves"],
+  },
+  skirmisher: {
+    weapon: ["Recurve Bow","Hunting Bow","War Dagger","Rapier","Hatchet","Shortbow","Stiletto","Longbow"],
+    armor:  ["Leather Jerkin","Studded Leather","Ranger's Jerkin","Hide Coat","Supple Jerkin","Layered Hide","Traveler's Coat","Scout's Hide"],
+    helm:   ["Leather Hood","Cowl","Ranger's Hood","Traveler's Cap","Leather Coif","Woodland Hood","Feathered Cap","Scout's Hood"],
+    gloves: ["Leather Grips","Fingerless Gloves","Bracers","Leather Bracers","Archer's Grips","Supple Gloves","Handwraps","Hunter's Gloves"],
+    boots:  ["Light Treads","Leather Striders","Soft-Soled Boots","Traveler's Boots","Quickstep Boots","Leather Anklets","Woodland Treads","Scout's Boots"],
+  },
+  arcane: {
+    weapon: ["Gnarled Staff","Oaken Staff","Crystal Wand","Carved Rod","Bone Athame","Runed Staff","Glass Wand","Twisted Staff"],
+    armor:  ["Robe","Vestment","Silk Mantle","Cloth Wrap","Embroidered Robe","Woven Mantle","Ceremonial Vestment","Arcane Cloak"],
+    helm:   ["Circlet","Cloth Hood","Woven Cap","Silk Cowl","Jeweled Circlet","Arcane Circlet","Scholar's Cap","Woven Cowl"],
+    gloves: ["Silk Gloves","Cloth Wraps","Woven Gloves","Runed Gloves","Spellcaster's Gloves","Silk Grips","Enchanted Wraps","Cloth Handwraps"],
+    boots:  ["Cloth Slippers","Silk Boots","Woven Sandals","Soft Boots","Enchanted Slippers","Traveler's Slippers","Cloth Treads","Woven Boots"],
+  },
+};
+
+// archetype is null for relics and for Novice/no-lineage-yet heroes, which
+// both fall back to BASE_BY_SLOT — same one pick() call either way, so this
+// never changes how many rng() draws an item costs.
+function genItemName(slot, tier, archetype){
+  const bases = (archetype && ARCHETYPE_BASE_BY_SLOT[archetype] && ARCHETYPE_BASE_BY_SLOT[archetype][slot])
+    || BASE_BY_SLOT[slot];
+  return `${pick(PREFIX_BY_TIER[tier])} ${pick(bases)} of ${pick(SUFFIX_BY_TIER[tier])}`;
 }
 
 // Gloves and boots base names (Gauntlets, Sabatons, Vambraces, Wraps…) are
@@ -1771,7 +1857,8 @@ function genItemName(slot, tier){
 // which base got picked ("an epic Thornbound Sabatons"). Rather than force
 // every base name in BASE_BY_SLOT singular (losing the flavor of "a pair of
 // Gauntlets"), phrase those two slots with "a pair of" instead of an article.
-// Every other slot's bases are genuinely singular, so they keep aOrAn().
+// Every other slot's bases (generic AND every archetype bank above) are kept
+// genuinely singular by convention, so they keep aOrAn().
 const PLURAL_SLOTS = new Set(["gloves","boots"]);
 function itemPhrase(item){
   const tierWord = (item.tier === "epic" || item.tier === "legendary") ? item.tier + " " : "";
@@ -1786,7 +1873,10 @@ function itemPhrase(item){
 // skillBump adds the hero's dropQuality skill effect on top of the merchant bump.
 // forceTier (Phase 7) skips the roll entirely — used for the ascendOnce
 // starting-relic reward, where the tier is a fixed unlock, not a drop.
-function generateItem(zoneN, slot, tierBump, skillBump, forceTier){
+// archetype (item 4) picks which BASE_BY_SLOT-shaped name bank to draw from —
+// see archetypeForClass()/ARCHETYPE_BASE_BY_SLOT above. Purely cosmetic:
+// stats still roll off SLOT_FAVORED via rollItemStats, untouched.
+function generateItem(zoneN, slot, tierBump, skillBump, forceTier, archetype){
   const z = ZONES[zoneN-1];
   slot = slot || pick(SLOT_KEYS);
   const ilvl = randInt(z.ilvl[0], z.ilvl[1]);
@@ -1794,7 +1884,7 @@ function generateItem(zoneN, slot, tierBump, skillBump, forceTier){
   const score = ilvl * TIERS[tier].mult;
   const budget = Math.max(1, Math.round(score * BALANCE.gearBudget));
   const item = {
-    name: genItemName(slot, tier), slot, tier, ilvl, score,
+    name: genItemName(slot, tier, slot === "relic" ? null : archetype), slot, tier, ilvl, score,
     stats: rollItemStats(slot, budget), cheatDeath: 0,
   };
   // Relics are the only slot that can grant a cheat-death charge — kept
@@ -1816,7 +1906,7 @@ function rollDrop(S){
   const h = S.hero;
   const d = derived(h, S.gear);
   if (rng() >= d.dropChance) return;
-  const item = generateItem(S.world.zone, null, false, d.dropTierBump);
+  const item = generateItem(S.world.zone, null, false, d.dropTierBump, undefined, archetypeForClass(h.cls));
   S.stats.itemsFound++;
   if (item.tier === "legendary" && S._meta) unlockAchievement(S._meta, "legendaryFound", S);
   const equipped = S.gear[item.slot];
@@ -1882,7 +1972,7 @@ function doMerchantTrip(S){
   let spent = 0;
   while (bought.length < BALANCE.merchantMaxBuys){
     const {slot, score} = weakestSlot();
-    const stock = generateItem(z.n, slot, true, d.dropTierBump);
+    const stock = generateItem(z.n, slot, true, d.dropTierBump, undefined, archetypeForClass(h.cls));
     if (stock.score <= score) break;          // nothing better on offer for this slot tonight
     const price = priceOf(stock.score);
     if (h.gold < price){ blockedByPrice = true; break; }
@@ -1909,7 +1999,7 @@ function doMerchantTrip(S){
       if (sc < cScore){ cScore = sc; cSlot = s; }
     }
     if (cSlot){
-      const commission = generateItem(z.n, cSlot, true, d.dropTierBump, BALANCE.commissionTier);
+      const commission = generateItem(z.n, cSlot, true, d.dropTierBump, BALANCE.commissionTier, archetypeForClass(h.cls));
       const price = Math.round(commission.score * BALANCE.buyPriceMult * BALANCE.commissionPriceMult
                                 * zoneFactor * (1 - cha * 0.005) * d.buyMult);
       if (commission.score > cScore && h.gold >= price){
@@ -2162,6 +2252,7 @@ function completeConfrontationStep(S){
       if (S._meta.ascensionCount === 1) unlockAchievement(S._meta, "ascendOnce", S);
       if (S._meta.ascensionCount === 3) unlockAchievement(S._meta, "ascendThrice", S);
     }
+    onHeroRunEnd(S);   // an ascended run's tasks count toward the lifetime tally too
   }
 }
 
@@ -2294,7 +2385,7 @@ let META = null;
 
 function defaultMeta(){
   return {version: META_VERSION, achievements:[], unlocks:{}, hall:[], heroesRun:0,
-          deathZones:[], classesReached:[], ascensionCount:0, heroesLaidToRest:0};
+          lifetimeTasks:0, classesReached:[], ascensionCount:0, heroesLaidToRest:0};
 }
 // Every new meta field needs both a default here AND a fallback below, same
 // discipline as the hero save's migrate() — a corrupted or pre-Phase-7
@@ -2307,7 +2398,10 @@ function migrateMeta(m){
   if (!Array.isArray(m.hall)) m.hall = [];
   if (m.heroesRun === undefined) m.heroesRun = 0;
   // v1 -> v2 (Phase 7: achievement bookkeeping fields)
-  if (!Array.isArray(m.deathZones)) m.deathZones = [];
+  // deathZones fed the removed "Six Graves" achievement; drop it rather than
+  // carry dead state forward. lifetimeTasks replaces it.
+  if (m.deathZones !== undefined) delete m.deathZones;
+  if (typeof m.lifetimeTasks !== "number") m.lifetimeTasks = 0;
   if (!Array.isArray(m.classesReached)) m.classesReached = [];
   if (m.ascensionCount === undefined) m.ascensionCount = 0;
   if (m.heroesLaidToRest === undefined) m.heroesLaidToRest = 0;
@@ -2850,6 +2944,7 @@ function renderRetireConfirm(){
 function retireHero(){
   const h = S.hero, w = S.world;
   const lived = Math.max(0, w.clock - S.stats.birthTime);
+  onHeroRunEnd(S);   // a retired run's tasks still count toward the lifetime tally
   META.hall.push({
     name: h.name, race: h.race, cls: h.cls,
     classPath: h.classPath.map(k => (CLASSES[k] ? CLASSES[k].name : k)),
@@ -2904,8 +2999,9 @@ function renderAchievements(){
   const rows = ACHIEVEMENT_KEYS.map(key => {
     const a = ACHIEVEMENTS[key];
     const got = earned.has(key);
-    return `<div class="gearslot">
-        <b style="${got ? "" : "color:var(--ink-dim)"}">${esc(a.name)}${got ? "" : " &middot; not yet"}</b>
+    const mark = got ? `<span class="ach-check" aria-hidden="true">&#10003;</span> ` : "";
+    return `<div class="ach-row${got ? " earned" : ""}">
+        <b class="ach-title">${mark}${esc(a.name)}${got ? "" : " &middot; not yet"}</b>
         <div class="tiny muted" style="margin-top:2px">${esc(a.desc)}</div>
         <div class="tiny" style="margin-top:2px">${esc(a.reward)}</div>
       </div>`;
@@ -3074,7 +3170,7 @@ function summaryCard(s, opts){
   if (s.zoneTo !== s.zoneFrom) lines.push(`Traveled to ${esc(ZONES[s.zoneTo-1].name)}`);
 
   const notable = s.notable.filter(e => !WYWA_HIDE_TYPES.has(e.type)).slice(-14);
-  const dismissBtn = opts.dismiss === false ? "" : `<button class="dismiss" id="wywa-dismiss">Dismiss</button>`;
+  const dismissBtn = opts.dismiss === false ? "" : `<button class="btn ghost dismiss" id="wywa-dismiss">Dismiss</button>`;
   const entrance = opts.entrance === false ? "" : " wywa-in";
 
   return `<div class="card wywa${entrance}">
@@ -3213,8 +3309,8 @@ function skillsTabBody(){
   const path = h.classPath.map(k => (CLASSES[k] ? CLASSES[k].name : k)).join(" &rarr; ");
   const learned = h.skills.map(k => SKILLS[k]).filter(Boolean);
   const rows = learned.length
-    ? learned.map(sk => `<div class="gearslot">
-        <b>${esc(sk.name)}</b>
+    ? learned.map(sk => `<div class="skill-row">
+        <b class="skill-title">${esc(sk.name)}</b>
         <div class="tiny" style="margin-top:2px">${esc(sk.blurb)}</div>
       </div>`).join("")
     : `<div class="empty">No skills yet — the first is offered at level 5.</div>`;
@@ -3459,7 +3555,8 @@ window.GQ = {
   hasEpicOrBetterRelic, beginConfrontation, completeConfrontationStep,
   rollConfrontationPeril, renderAscension, renderDeath,
   // Phase 7 — meta-progression, achievements, Hall of Legends.
-  ACHIEVEMENTS, ACHIEVEMENT_KEYS, unlockAchievement, onHeroDeath, checkFullRareSet,
+  ACHIEVEMENTS, ACHIEVEMENT_KEYS, unlockAchievement, onHeroDeath, onHeroRunEnd,
+  CLASS_ARCHETYPE, archetypeForClass, ARCHETYPE_BASE_BY_SLOT, checkFullRareSet,
   attachMeta, invSlots, HALL_MAX, trimHall, NAME_FIRST, NAME_ANCIENT, NAME_TITLES,
   NAME_FIRST_BY_RACE,
   rollHeroName, defaultMeta, migrateMeta, loadMeta, saveMeta, retireHero,
