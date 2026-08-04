@@ -80,7 +80,13 @@ h1,h2,h3{font-family:Cinzel,Georgia,serif; font-weight:700; margin:0}
    muted uppercase slot-label style (which is what made them fade out). */
 .skill-row{padding:9px 0; border-bottom:1px solid var(--line)}
 .skill-row:last-child{border-bottom:none}
-.skill-row .skill-title{display:block; font-family:Cinzel,serif; font-size:14.5px; color:var(--head)}
+/* Skill names must NOT share the headline treatment. .card h2 ("Path",
+   "Skills") is uppercase, letter-spaced and --head green; a skill name in the
+   same colour and face reads as another section header rather than content.
+   Parchment --ink, no uppercase, no tracking: clearly a title, clearly not a
+   heading, and still well above the --ink-dim blurb beneath it. */
+.skill-row .skill-title{display:block; font-family:Cinzel,serif; font-size:15px;
+  color:var(--ink); letter-spacing:.01em; text-transform:none}
 
 /* chronicle — sessions (real sittings, by time-gap) each hold chapter breaks
    (zone arrivals) and entries. Rendered strict newest-first throughout: newest
@@ -156,6 +162,31 @@ h1,h2,h3{font-family:Cinzel,Georgia,serif; font-weight:700; margin:0}
 .ach-row.earned{background:#241f18; border-color:var(--gold-lit)}
 .ach-row.earned .ach-title{color:var(--gold-lit)}
 .ach-check{color:var(--gold-lit)}
+
+/* achievement progress detail — native <details>/<summary> (accessible,
+   no JS) restyled to match the card language instead of browser defaults.
+   The summary IS the toggle, so it gets a full-width tap target rather than
+   relying on a tiny disclosure triangle. */
+.ach-progress{margin-top:10px; border-top:1px solid var(--line)}
+.ach-progress summary{cursor:pointer; list-style:none; display:flex; align-items:center;
+  justify-content:space-between; gap:8px; padding:13px 2px; font-size:12px;
+  letter-spacing:.1em; text-transform:uppercase; color:var(--ink-dim);
+  -webkit-tap-highlight-color:transparent}
+.ach-progress summary::-webkit-details-marker{display:none}
+.ach-progress summary::after{content:"+"; font-family:Cinzel,serif; font-size:16px;
+  line-height:1; color:var(--ink-mute)}
+.ach-progress[open] summary::after{content:"\2212"}
+.ach-progress-body{padding:0 2px 11px}
+.ach-bar-row + .ach-bar-row{margin-top:10px}
+.ach-bar-label{display:flex; justify-content:space-between; gap:10px; font-size:12.5px;
+  color:var(--ink-dim); margin-bottom:5px}
+.ach-bar-label span:last-child{white-space:nowrap; font-variant-numeric:tabular-nums}
+.ach-lineage{font-size:11px; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--ink-mute); margin:10px 0 5px}
+.ach-lineage:first-child{margin-top:0}
+.ach-chiprow{display:flex; flex-wrap:wrap; gap:6px}
+.ach-chiprow .chip{cursor:default}
+.ach-chiprow .chip.reached{border-color:var(--gold-lit); color:var(--ink); background:#241f18}
 
 .modal{position:fixed; inset:0; background:rgba(8,6,5,.86); display:flex; align-items:center;
   justify-content:center; padding:16px; z-index:50; overflow-y:auto}
@@ -1776,7 +1807,7 @@ const ACHIEVEMENTS = {
   // A lifetime-accumulation goal is a category nothing else in this set covers,
   // and it suits what the Ancient names are: the long record rather than one event.
   longRecord: {
-    name: "The Long Record",
+    name: "The Long Road",
     desc: "Complete 25,000 tasks across all your heroes.",
     reward: "Unlocks the Ancient name pool at hero creation.",
     apply: meta => { meta.unlocks.ancientNames = true; },
@@ -3762,18 +3793,81 @@ function hallRow(e){
     </div>`;
 }
 
+// Progress detail for achievements that have real tracked data behind them.
+// Deliberately only these five keys — the rest (actII/actIII/level40/
+// legendaryFound/ascendOnce) are genuinely binary with nothing in META to
+// measure against, so they stay un-expandable rather than faking a counter.
+// Every META read here is defensive (old saves may predate a field —
+// migrateMeta backfills, but this renders before boot-order is a safe bet
+// to lean on) and achRareSetHtml tolerates S === null (the achievements
+// screen is reachable from the creation screen, before any hero exists).
+function achBarRow(label, value, target){
+  const shown = Math.max(0, Math.min(value, target));
+  return `<div class="ach-bar-row">
+      <div class="ach-bar-label"><span>${esc(label)}</span><span>${fmt(value)} / ${fmt(target)}</span></div>
+      <div class="bar"><i style="width:${pct(shown, target)}"></i></div>
+    </div>`;
+}
+function achClassesBody(classesReached){
+  const groups = Object.keys(ADVANCED_OF).map(t1 => {
+    const chips = ADVANCED_OF[t1].map(ck => {
+      const got = classesReached.includes(ck);
+      const mark = got ? `<span class="ach-check" aria-hidden="true">&#10003;</span> ` : "";
+      return `<span class="chip${got ? " reached" : ""}">${mark}${esc(CLASSES[ck].name)}</span>`;
+    }).join("");
+    return `<div class="ach-lineage">${esc(CLASSES[t1].name)}</div><div class="ach-chiprow">${chips}</div>`;
+  }).join("");
+  return groups + achBarRow("Classes reached", classesReached.length, 12);
+}
+function achRareSetBody(){
+  if (!S) return `<p class="tiny muted" style="margin:0">Create a hero and gear them up to track this one.</p>`;
+  let have = 0;
+  const chips = SLOT_KEYS.map(slot => {
+    const item = S.gear[slot];
+    const qualifies = !!item && (item.tier === "rare" || item.tier === "epic" || item.tier === "legendary");
+    if (qualifies) have++;
+    const mark = qualifies ? `<span class="ach-check" aria-hidden="true">&#10003;</span> ` : "";
+    const label = item ? `${cap(slot)} &middot; ${cap(item.tier)}` : `${cap(slot)} &middot; empty`;
+    const style = qualifies ? ` style="border-color:var(--tier-${item.tier}); color:var(--tier-${item.tier})"` : "";
+    return `<span class="chip${qualifies ? " reached" : ""}"${style}>${mark}${label}</span>`;
+  }).join("");
+  return `<div class="ach-chiprow">${chips}</div>` + achBarRow("Rare-or-better slots", have, 6);
+}
+function achievementProgressBody(key){
+  const m = META || {};
+  switch(key){
+    case "longRecord":
+      return achBarRow("Tasks completed", typeof m.lifetimeTasks === "number" ? m.lifetimeTasks : 0, 25000);
+    case "tenHeroesRest":
+      return achBarRow("Heroes laid to rest", typeof m.heroesLaidToRest === "number" ? m.heroesLaidToRest : 0, 10);
+    case "ascendThrice":
+      return achBarRow("Ascensions", typeof m.ascensionCount === "number" ? m.ascensionCount : 0, 3);
+    case "allAdvancedClasses":
+      return achClassesBody(Array.isArray(m.classesReached) ? m.classesReached : []);
+    case "fullRareSet":
+      return achRareSetBody();
+    default:
+      return "";
+  }
+}
+
 // Achievements — earned AND unearned shown together with their rewards, so
 // an unearned one reads as a goal to chase rather than a blank spoiler-free slot.
+// Rows with tracked progress get a <details> disclosure so a player can see
+// how close they are without cluttering the row for everyone else.
 function renderAchievements(){
   const earned = new Set(META.achievements || []);
   const rows = ACHIEVEMENT_KEYS.map(key => {
     const a = ACHIEVEMENTS[key];
     const got = earned.has(key);
     const mark = got ? `<span class="ach-check" aria-hidden="true">&#10003;</span> ` : "";
+    const progress = achievementProgressBody(key);
     return `<div class="ach-row${got ? " earned" : ""}">
         <b class="ach-title">${mark}${esc(a.name)}${got ? "" : " &middot; not yet"}</b>
         <div class="tiny muted" style="margin-top:2px">${esc(a.desc)}</div>
         <div class="tiny" style="margin-top:2px">${esc(a.reward)}</div>
+        ${progress ? `<details class="ach-progress"><summary>Progress</summary>
+            <div class="ach-progress-body">${progress}</div></details>` : ""}
       </div>`;
   }).join("");
   app.innerHTML = `
@@ -4093,7 +4187,7 @@ function skillsTabBody(){
   const rows = learned.length
     ? learned.map(sk => `<div class="skill-row">
         <b class="skill-title">${esc(sk.name)}</b>
-        <div class="tiny" style="margin-top:2px">${esc(sk.blurb)}</div>
+        <div class="tiny muted" style="margin-top:2px">${esc(sk.blurb)}</div>
       </div>`).join("")
     : `<div class="empty">No skills yet — the first is offered at level 5.</div>`;
   return `<h2>Path</h2>
